@@ -7,16 +7,26 @@
     <!-- Firebase Libraries -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, query, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // --- VAŠA KONFIGURÁCIA FIREBASE JE TERAZ VLOŽENÁ ---
+        const manualConfig = {
+            apiKey: "AIzaSyCwcQRH3805_Fif-a451ER-0VxFsZh2l8s",
+            authDomain: "vspspektra.firebaseapp.com",
+            projectId: "vspspektra",
+            storageBucket: "vspspektra.firebasestorage.app",
+            messagingSenderId: "711979749068",
+            appId: "1:711979749068:web:8ce68d29d2059456f43c69"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualConfig;
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vaillant-protokol-spektra';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vspspektra-app';
 
-        // Utility to show messages instead of alert()
+        // Globálne funkcie
         window.showMessage = function(text, type = 'info') {
             const box = document.getElementById('messageBox');
             box.textContent = text;
@@ -25,16 +35,26 @@
             setTimeout(() => { box.style.display = 'none'; }, 4000);
         };
 
+        // Anonymné prihlásenie pre prístup k DB
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+                console.log("Pripojené k Firebase");
+            } catch (error) { 
+                console.error("Auth error:", error);
+                window.showMessage("Chyba pripojenia k databáze.", 'error');
+            }
+        };
+        initAuth();
+
+        // Uloženie protokolu
         window.saveToArchive = async function() {
-            const user = auth.currentUser;
-            if (!user) {
-                window.showMessage("Chyba: Používateľ nie je prihlásený.", 'error');
+            if (!auth.currentUser) {
+                window.showMessage("Chyba: Nie ste pripojený k databáze.", 'error');
                 return;
             }
-
             const loader = document.getElementById('globalLoader');
             loader.style.display = 'flex';
-
             try {
                 const canvas = document.getElementById('sigPad');
                 const signatureData = canvas.toDataURL();
@@ -49,8 +69,6 @@
                     extSerial: document.getElementById('extSerial').value,
                     intModel: document.getElementById('intModel').value,
                     intSerial: document.getElementById('intSerial').value,
-                    tankType: document.getElementById('tankType').value,
-                    tankVol: document.getElementById('tankVol').value,
                     refType: document.getElementById('refType').value,
                     refVacuum: document.getElementById('refVacuum').value,
                     refPressure: document.getElementById('refPressure').value,
@@ -60,15 +78,6 @@
                     pPress: document.getElementById('pPress').value,
                     oPress: document.getElementById('oPress').value,
                     ePress: document.getElementById('ePress').value,
-                    flowMin: document.getElementById('flowMin').value,
-                    volSys: document.getElementById('volSys').value,
-                    magFilter: document.getElementById('magFilter').value,
-                    curve: document.getElementById('curve').value,
-                    bival: document.getElementById('bival').value,
-                    dhwTemp: document.getElementById('dhwTemp').value,
-                    maxOut: document.getElementById('maxOut').value,
-                    limit: document.getElementById('limit').value,
-                    flowAct: document.getElementById('flowAct').value,
                     notes: document.getElementById('notes').value,
                     signature: signatureData,
                     photo1: photo1.startsWith('data:') ? photo1 : null,
@@ -79,363 +88,152 @@
 
                 const docId = `${data.protoCislo}_${data.zakaznikMeno.replace(/\s+/g, '_')}`;
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'protocols', docId), data);
-                
-                window.showMessage("Protokol bol úspešne uložený do archívu.");
-            } catch (error) {
-                console.error("Error saving document: ", error);
-                window.showMessage("Chyba pri ukladaní: " + error.message, 'error');
-            } finally {
-                loader.style.display = 'none';
+                window.showMessage("Protokol úspešne uložený do archívu.");
+            } catch (error) { 
+                window.showMessage("Chyba pri ukladaní: " + error.message, 'error'); 
+            } finally { 
+                loader.style.display = 'none'; 
             }
         };
 
+        // Zoznam z archívu
         window.openArchive = async function() {
-            const user = auth.currentUser;
-            if (!user) return;
-
             const modal = document.getElementById('archiveModal');
             const list = document.getElementById('archiveList');
             list.innerHTML = '<p style="text-align:center; padding:20px;">Načítavam záznamy...</p>';
             modal.style.display = 'flex';
-
             try {
                 const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
                 list.innerHTML = '';
-                
                 if (querySnapshot.empty) {
-                    list.innerHTML = '<p style="text-align:center; padding:20px;">Žiadne záznamy sa nenašli.</p>';
+                    list.innerHTML = '<p style="text-align:center; padding:20px;">Archív je zatiaľ prázdny.</p>';
                     return;
                 }
-
                 querySnapshot.forEach((docSnap) => {
                     const item = docSnap.data();
                     const row = document.createElement('div');
                     row.className = 'archive-item';
                     row.innerHTML = `
                         <div>
-                            <strong>${item.protoCislo}</strong> - ${item.zakaznikMeno}<br>
-                            <small>${item.datum || ''} | ${item.zakaznikAdresa || ''}</small>
+                            <strong>${item.protoCislo}</strong><br>
+                            <small>${item.zakaznikMeno}</small>
                         </div>
                         <button class="btn-select" onclick="loadProtocolData('${docSnap.id}')">Otvoriť</button>
                     `;
                     list.appendChild(row);
                 });
-            } catch (error) {
-                list.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Chyba pri načítaní archívu.</p>';
+            } catch (e) { 
+                list.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Chyba prístupu k archívu.</p>'; 
             }
         };
 
+        // Načítanie konkrétneho protokolu
         window.loadProtocolData = async function(docId) {
-            const loader = document.getElementById('globalLoader');
-            loader.style.display = 'flex';
+            document.getElementById('globalLoader').style.display = 'flex';
             document.getElementById('archiveModal').style.display = 'none';
-
             try {
-                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
-                const docSnap = querySnapshot.docs.find(d => d.id === docId);
+                const protocolsRef = collection(db, 'artifacts', appId, 'public', 'data', 'protocols');
+                const querySnapshot = await getDocs(protocolsRef);
+                const data = querySnapshot.docs.find(d => d.id === docId).data();
                 
-                if (docSnap) {
-                    const data = docSnap.data();
-                    
-                    document.getElementById('protoCislo').value = data.protoCislo || '';
-                    document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
-                    document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
-                    document.getElementById('extModel').value = data.extModel || '';
-                    document.getElementById('extSerial').value = data.extSerial || '';
-                    document.getElementById('intModel').value = data.intModel || '';
-                    document.getElementById('intSerial').value = data.intSerial || '';
-                    document.getElementById('tankType').value = data.tankType || '';
-                    document.getElementById('tankVol').value = data.tankVol || '';
-                    
-                    document.getElementById('refType').value = data.refType || 'R290';
-                    updateRefrigerantUI();
-                    document.getElementById('refVacuum').value = data.refVacuum || '';
-                    document.getElementById('refPressure').value = data.refPressure || '';
-                    document.getElementById('refAmbientTemp').value = data.refAmbientTemp || '';
+                document.getElementById('protoCislo').value = data.protoCislo || '';
+                document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
+                document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
+                document.getElementById('extModel').value = data.extModel || '';
+                document.getElementById('extSerial').value = data.extSerial || '';
+                document.getElementById('intModel').value = data.intModel || '';
+                document.getElementById('intSerial').value = data.intSerial || '';
+                document.getElementById('refType').value = data.refType || 'R290';
+                updateRefrigerantUI();
+                document.getElementById('refVacuum').value = data.refVacuum || '';
+                document.getElementById('refPressure').value = data.refPressure || '';
+                document.getElementById('refAmbientTemp').value = data.refAmbientTemp || '';
+                document.getElementById('hardness').value = data.hardness || '8.0';
+                document.getElementById('ph').value = data.ph || '8.0';
+                document.getElementById('pPress').value = data.pPress || '1.2';
+                document.getElementById('oPress').value = data.oPress || '1.5';
+                document.getElementById('ePress').value = data.ePress || '1.0';
+                document.getElementById('notes').value = data.notes || '';
+                document.getElementById('datumInput').value = data.datum || '';
 
-                    document.getElementById('hardness').value = data.hardness || '8.0';
-                    document.getElementById('ph').value = data.ph || '8.0';
-                    document.getElementById('pPress').value = data.pPress || '1.2';
-                    document.getElementById('oPress').value = data.oPress || '1.5';
-                    document.getElementById('ePress').value = data.ePress || '1.0';
-                    document.getElementById('flowMin').value = data.flowMin || '';
-                    document.getElementById('volSys').value = data.volSys || '';
-                    document.getElementById('magFilter').value = data.magFilter || 'Áno';
-                    document.getElementById('curve').value = data.curve || '0.5';
-                    document.getElementById('bival').value = data.bival || '-7';
-                    document.getElementById('dhwTemp').value = data.dhwTemp || '50';
-                    document.getElementById('maxOut').value = data.maxOut || '45';
-                    document.getElementById('limit').value = data.limit || '';
-                    document.getElementById('flowAct').value = data.flowAct || '';
-                    document.getElementById('notes').value = data.notes || '';
-                    document.getElementById('datumInput').value = data.datum || '';
-
-                    if (data.photo1) {
-                        document.getElementById('photoPreview1').src = data.photo1;
-                        document.getElementById('photoPreview1').style.display = 'block';
-                        document.getElementById('photoPlaceholder1').style.display = 'none';
-                    }
-                    if (data.photo2) {
-                        document.getElementById('photoPreview2').src = data.photo2;
-                        document.getElementById('photoPreview2').style.display = 'block';
-                        document.getElementById('photoPlaceholder2').style.display = 'none';
-                    }
-
-                    if (data.signature) {
-                        const img = new Image();
-                        img.onload = function() {
-                            const canvas = document.getElementById('sigPad');
-                            const ctx = canvas.getContext('2d');
-                            ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            ctx.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
-                        };
-                        img.src = data.signature;
-                    }
-                    window.showMessage("Dáta boli načítané.");
+                if (data.photo1) { document.getElementById('photoPreview1').src = data.photo1; document.getElementById('photoPreview1').style.display = 'block'; document.getElementById('photoPlaceholder1').style.display = 'none'; }
+                if (data.photo2) { document.getElementById('photoPreview2').src = data.photo2; document.getElementById('photoPreview2').style.display = 'block'; document.getElementById('photoPlaceholder2').style.display = 'none'; }
+                
+                if (data.signature) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.getElementById('sigPad');
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width/(window.devicePixelRatio||1), canvas.height/(window.devicePixelRatio||1));
+                    };
+                    img.src = data.signature;
                 }
-            } catch (error) {
-                window.showMessage("Chyba pri načítaní dát.", 'error');
-            } finally {
-                loader.style.display = 'none';
+                window.showMessage("Dáta z archívu boli načítané.");
+            } catch (e) { 
+                window.showMessage("Chyba pri načítaní.", 'error'); 
+            } finally { 
+                document.getElementById('globalLoader').style.display = 'none'; 
             }
         };
-
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth error:", error);
-            }
-        };
-
-        initAuth();
     </script>
 
     <style>
-        :root {
-            --vaillant-teal: #00897B;
-            --border-color: #bbbbbb;
-            --bg-gray: #f9f9f9;
-        }
-
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            line-height: 1.1; 
-            color: #333; 
-            margin: 0; 
-            padding: 5px; 
-            background-color: #f0f2f5; 
-        }
-
-        .paper { 
-            background: white; 
-            width: 210mm; 
-            min-height: 296mm; 
-            padding: 6mm 10mm; 
-            margin: 5px auto; 
-            box-shadow: 0 5px 25px rgba(0,0,0,0.1); 
-            position: relative; 
-            box-sizing: border-box;
-        }
-        
-        header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-start; 
-            border-bottom: 2px solid var(--vaillant-teal); 
-            padding-bottom: 5px; 
-            margin-bottom: 8px; 
-        }
-
-        .logo-text { 
-            color: var(--vaillant-teal); 
-            font-weight: 800; 
-            font-size: 26px; 
-            letter-spacing: -1px; 
-            margin: 0;
-            line-height: 1;
-        }
-
-        .title-block { text-align: right; }
-        h1 { 
-            font-size: 15px; 
-            margin: 0; 
-            color: var(--vaillant-teal); 
-            text-transform: uppercase; 
-        }
-        .subtitle { font-size: 9px; font-weight: bold; color: #444; }
-        .protokol-cislo { font-size: 10px; margin-top: 2px; font-weight: bold; }
-        
-        h2 { 
-            font-size: 10px; 
-            background: var(--vaillant-teal); 
-            color: white; 
-            padding: 3px 10px; 
-            margin: 5px 0 3px 0; 
-            border-radius: 2px;
-            text-transform: uppercase;
-        }
-        
-        table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 10px; }
+        :root { --vaillant-teal: #00897B; --border-color: #bbbbbb; }
+        body { font-family: 'Segoe UI', sans-serif; line-height: 1.1; color: #333; margin: 0; padding: 5px; background-color: #f0f2f5; }
+        .paper { background: white; width: 210mm; min-height: 296mm; padding: 10mm 15mm; margin: 10px auto; box-shadow: 0 5px 25px rgba(0,0,0,0.1); position: relative; box-sizing: border-box; }
+        header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--vaillant-teal); padding-bottom: 5px; margin-bottom: 10px; }
+        .logo-text { color: var(--vaillant-teal); font-weight: 800; font-size: 30px; margin: 0; }
+        h1 { font-size: 16px; margin: 0; color: var(--vaillant-teal); text-transform: uppercase; }
+        h2 { font-size: 11px; background: var(--vaillant-teal); color: white; padding: 4px 10px; margin: 10px 0 5px 0; border-radius: 2px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
         table, th, td { border: 1px solid var(--border-color); }
-        th, td { padding: 2px 6px; text-align: left; }
-        th { background-color: white; width: 25%; font-weight: 600; color: #555; }
-
-        input[type="text"], textarea, select {
-            width: 100%;
-            border: none;
-            border-bottom: 1px dashed #ddd;
-            font-family: inherit;
-            font-size: inherit;
-            padding: 0;
-            background-color: transparent;
-            resize: none;
-        }
-        input:focus, textarea:focus, select:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
-
-        .photo-grid { display: flex; gap: 8px; margin-top: 4px; }
-        .photo-container {
-            flex: 1;
-            border: 1px dashed #ccc;
-            padding: 2px;
-            text-align: center;
-            min-height: 60px;
-            background-color: #fafafa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-        }
-        .photo-preview { max-width: 100%; max-height: 140px; display: none; border-radius: 2px; }
-
-        .checkbox-section { margin: 4px 0; font-size: 9.5px; }
-        .check-item { display: flex; align-items: center; gap: 6px; margin-bottom: 1px; }
-        .check-icon { color: var(--vaillant-teal); font-weight: bold; }
-
-        .notes-area {
-            width: 100%;
-            font-size: 10px;
-            min-height: 35px;
-            padding: 5px;
-            box-sizing: border-box;
-            background-color: #fcfcfc;
-            border: 1px solid #eee;
-        }
-
-        .footer-sig { 
-            margin-top: 10px; 
-            display: flex; 
-            justify-content: space-between; 
-            gap: 15px;
-        }
+        th, td { padding: 4px 10px; text-align: left; }
+        th { background-color: #f9f9f9; width: 25%; font-weight: 600; color: #555; }
+        input, textarea, select { width: 100%; border: none; border-bottom: 1px dashed #ddd; font-family: inherit; font-size: inherit; background: transparent; padding: 2px 0; }
+        input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
+        .photo-grid { display: flex; gap: 10px; margin-top: 5px; }
+        .photo-container { flex: 1; border: 1px dashed #ccc; height: 120px; display: flex; align-items: center; justify-content: center; border-radius: 4px; overflow: hidden; background: #fafafa; }
+        .photo-preview { max-width: 100%; max-height: 100%; display: none; }
+        .notes-area { width: 100%; font-size: 11px; min-height: 40px; padding: 5px; box-sizing: border-box; background: #fcfcfc; border: 1px solid #eee; }
+        .footer-sig { margin-top: 20px; display: flex; justify-content: space-between; }
         .sig-column { width: 48%; text-align: center; }
-        .sig-label { font-size: 8.5px; color: #666; margin-top: 3px; border-top: 1px solid #333; padding-top: 2px; }
-        
-        .signature-pad {
-            border: 1px solid #eee;
-            background-color: #fcfcfc;
-            width: 100%;
-            height: 75px;
-            cursor: crosshair;
-            touch-action: none;
-        }
-
-        .stamp-area {
-            height: 75px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-        #stampImg { max-height: 75px; max-width: 100%; object-fit: contain; }
-
-        /* Controls */
-        .controls {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 1000;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 50px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: white;
-            text-align: center;
-            justify-content: center;
-        }
+        .sig-label { font-size: 9px; color: #666; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
+        .signature-pad { border: 1px solid #eee; background: #fcfcfc; width: 100%; height: 90px; touch-action: none; cursor: crosshair; }
+        .stamp-area { height: 90px; display: flex; align-items: center; justify-content: center; }
+        #stampImg { max-height: 90px; max-width: 100%; object-fit: contain; }
+        .controls { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
+        .btn { padding: 10px 20px; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .btn-print { background: var(--vaillant-teal); }
         .btn-archive { background: #1976D2; }
         .btn-save { background: #2E7D32; }
         .btn-photo { background: #444; }
-        .btn-clear { background: #d32f2f; padding: 3px 8px; font-size: 8px; margin-top: 1px; border: none; border-radius: 3px; color: white; cursor: pointer; }
-
-        #archiveModal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000;
-        }
-        .modal-content {
-            background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;
-        }
-        .archive-item {
-            display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;
-        }
-        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-
-        #globalLoader {
-            position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7);
-            display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal);
-        }
-
-        #messageBox {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
+        .btn-clear { background: #d32f2f; padding: 2px 8px; font-size: 9px; margin-top: 3px; border: none; border-radius: 3px; color: white; cursor: pointer; }
+        #archiveModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 450px; max-height: 80vh; overflow-y: auto; }
+        .archive-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        #globalLoader { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7); display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal); }
+        #messageBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 6px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         @media print {
-            body { background: white; padding: 0; }
-            .paper { box-shadow: none; margin: 0; width: 100%; padding: 4mm 8mm; }
-            .controls, .btn-clear, .photo-placeholder, #archiveModal, #globalLoader, #messageBox { display: none !important; }
+            .controls, .btn-clear, #archiveModal, #globalLoader, #messageBox { display: none !important; }
+            .paper { box-shadow: none; margin: 0; width: 100%; padding: 5mm; }
             input, textarea, select { border-bottom: none !important; }
-            .signature-pad { border: none; background: transparent; }
-            .notes-area { border: 1px solid #eee; background: transparent; }
             h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; color: white !important; }
-            select { appearance: none; -webkit-appearance: none; }
         }
     </style>
 </head>
 <body>
 
-<div id="globalLoader">Spracovávam...</div>
+<div id="globalLoader">Spracovávam požiadavku...</div>
 <div id="messageBox"></div>
 
 <div class="controls">
     <button class="btn btn-save" onclick="saveToArchive()">Uložiť do archívu</button>
     <button class="btn btn-archive" onclick="openArchive()">Otvoriť archív</button>
-    <button class="btn btn-print" onclick="window.print()">Tlačiť / PDF</button>
-    <label class="btn btn-photo">
-        Foto 1
-        <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')">
-    </label>
-    <label class="btn btn-photo">
-        Foto 2
-        <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')">
-    </label>
+    <button class="btn btn-print" onclick="window.print()">Tlačiť do PDF</button>
+    <label class="btn btn-photo">Foto 1 <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')"></label>
+    <label class="btn btn-photo">Foto 2 <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')"></label>
 </div>
 
 <div id="archiveModal" onclick="this.style.display='none'">
@@ -448,33 +246,27 @@
 
 <div class="paper">
     <header>
-        <div class="logo-container"><p class="logo-text">Vaillant</p></div>
-        <div class="title-block">
+        <div><p class="logo-text">Vaillant</p></div>
+        <div style="text-align: right;">
             <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
-            <div class="subtitle">Tepelné čerpadlo / Systémové riešenie</div>
-            <div class="protokol-cislo">Číslo protokolu: <input type="text" id="protoCislo" style="width: 100px; font-weight: bold;"></div>
+            <div style="font-size: 11px; font-weight: bold;">Číslo: <input type="text" id="protoCislo" style="width: 110px;"></div>
         </div>
     </header>
 
-    <section>
-        <table>
-            <tr>
-                <th style="vertical-align: top;">Zákazník / Miesto inštalácie</th>
-                <td>
-                    Meno: <input type="text" id="zakaznikMeno"><br>
-                    Adresa: <input type="text" id="zakaznikAdresa">
-                </td>
-            </tr>
-            <tr>
-                <th style="vertical-align: top;">Autorizovaný servis (VSP)</th>
-                <td>
-                    <strong>SPEKTRA INSTALL s.r.o.</strong><br>
-                    Hollého 210, 015 01 Rajec<br>
-                    IČO: 53690036 | DIČ: 2121459450 | Technik: <strong>Pavol Pastorek</strong>
-                </td>
-            </tr>
-        </table>
-    </section>
+    <table>
+        <tr>
+            <th>Zákazník</th>
+            <td>Meno: <input type="text" id="zakaznikMeno"><br>Adresa: <input type="text" id="zakaznikAdresa"></td>
+        </tr>
+        <tr>
+            <th style="vertical-align: top;">Autorizovaný servis</th>
+            <td>
+                <strong>SPEKTRA INSTALL s.r.o.</strong><br>
+                Hollého 210, 015 01 Rajec (Prevádzka)<br>
+                IČO: 53690036 | Technik: <strong>Pavol Pastorek</strong>
+            </td>
+        </tr>
+    </table>
 
     <h2>1. IDENTIFIKÁCIA ZARIADENIA</h2>
     <table>
@@ -488,11 +280,6 @@
             <td>Model: <input type="text" id="intModel"></td>
             <td>Sériové č.: <input type="text" id="intSerial"></td>
         </tr>
-        <tr>
-            <th>Zásobník / Iné</th>
-            <td>Typ: <input type="text" id="tankType"></td>
-            <td>Objem: <input type="text" id="tankVol" style="width: 40px;"> l</td>
-        </tr>
     </table>
 
     <h2>2. CHLADIVOVÝ OKRUH</h2>
@@ -505,77 +292,38 @@
                     <option value="R32">R32 (Split)</option>
                 </select>
             </td>
-            <td colspan="2" id="refInfoContainer">
+            <td colspan="2">
                 <span id="refMonoblockText" style="font-weight:bold; color:var(--vaillant-teal);">Hermeticky uzavretý monoblok</span>
-                <div id="refSplitFields" style="display:none; gap:10px; align-items:center;">
-                    Vakuovanie: <input type="text" id="refVacuum" style="width: 40px;"> mbar | 
-                    Tlak: <input type="text" id="refPressure" style="width: 40px;"> bar
+                <div id="refSplitFields" style="display:none; gap:10px;">
+                    Vakuovanie: <input type="text" id="refVacuum" style="width:40px;"> mbar | 
+                    Tlak: <input type="text" id="refPressure" style="width:40px;"> bar
                 </div>
             </td>
         </tr>
-        <tr>
-            <th>Teplota prostredia:</th>
-            <td colspan="3">
-                <input type="text" id="refAmbientTemp" style="width: 50px;"> °C
-            </td>
-        </tr>
+        <tr><th>Teplota prostredia:</th><td colspan="3"><input type="text" id="refAmbientTemp" style="width: 50px;"> °C</td></tr>
     </table>
 
-    <h2>3. KVALITA VODY A HYDRAULIKA (VDI 2035)</h2>
+    <h2>3. KVALITA VODY A HYDRAULIKA</h2>
     <table>
         <tr>
-            <td style="width: 50%;">Tvrdosť: <input type="text" id="hardness" style="width: 40px;" value="8.0"> °dH</td>
+            <td>Tvrdosť: <input type="text" id="hardness" style="width: 40px;" value="8.0"> °dH</td>
             <td>pH vody: <input type="text" id="ph" style="width: 40px;" value="8.0"></td>
-        </tr>
-        <tr>
             <td>Plniaci tlak: <input type="text" id="pPress" style="width: 40px;" value="1.2"> bar</td>
-            <td>Prevádzkový tlak: <input type="text" id="oPress" style="width: 40px;" value="1.5"> bar</td>
-            <td>Expanzia (predtlak): <input type="text" id="ePress" style="width: 40px;" value="1.0"> bar</td>
         </tr>
         <tr>
-            <td>Minimálny prietok: <input type="text" id="flowMin" style="width: 40px;"> l/min</td>
-            <td>Objem sústavy: <input type="text" id="volSys" style="width: 40px;"> l</td>
-            <td>Magnetický filter: <input type="text" id="magFilter" style="width: 60px;" value="Áno"></td>
+            <td>Prevádzkový: <input type="text" id="oPress" style="width: 40px;" value="1.5"> bar</td>
+            <td>Expanzia: <input type="text" id="ePress" style="width: 40px;" value="1.0"> bar</td>
+            <td>Filtre: <input type="text" style="width: 100px;" value="Magnetický vyčistený"></td>
         </tr>
     </table>
 
-    <h2>4. SOFTVÉROVÁ KONFIGURÁCIA A MERANIA</h2>
-    <table>
-        <tr>
-            <td style="width: 50%;">Vykurovacia krivka: <input type="text" id="curve" style="width: 50px;" value="0.5"></td>
-            <td>Bivalentný bod: <input type="text" id="bival" style="width: 50px;" value="-7"> °C</td>
-        </tr>
-        <tr>
-            <td>Teplota TÚV: <input type="text" id="dhwTemp" style="width: 50px;" value="50"> °C</td>
-            <td>Max. teplota výstupu: <input type="text" id="maxOut" style="width: 50px;" value="45"> °C</td>
-        </tr>
-        <tr>
-            <td>Doplnkový ohrev (limit): <input type="text" id="limit" style="width: 50px;"> kW</td>
-            <td>Aktuálny prietok: <input type="text" id="flowAct" style="width: 50px;"> l/h</td>
-        </tr>
-    </table>
+    <h2>4. POZNÁMKY / ŠPECIFIKÁCIA ZOSTAVY</h2>
+    <textarea id="notes" class="notes-area"></textarea>
 
-    <h2>5. POZNÁMKY / ŠPECIFIKÁCIA ZOSTAVY</h2>
-    <textarea id="notes" class="notes-area" placeholder="Doplňte popis zostavy..."></textarea>
-
-    <h2>6. FOTODOKUMENTÁCIA</h2>
+    <h2>5. FOTODOKUMENTÁCIA</h2>
     <div class="photo-grid">
-        <div class="photo-container">
-            <span id="photoPlaceholder1" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 8px;">[ Foto 1 ]</span>
-            <img id="photoPreview1" class="photo-preview">
-        </div>
-        <div class="photo-container">
-            <span id="photoPlaceholder2" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 8px;">[ Foto 2 ]</span>
-            <img id="photoPreview2" class="photo-preview">
-        </div>
-    </div>
-
-    <h2>7. KONTROLA A ODOVZDANIE</h2>
-    <div class="checkbox-section">
-        <div class="check-item"><span class="check-icon">✓</span> Zariadenie pracuje v stanovených medziach bez chybových hlásení.</div>
-        <div class="check-item"><span class="check-icon">✓</span> Vykonaná skúška tesnosti hydrauliky a vizuálna kontrola spojov.</div>
-        <div class="check-item"><span class="check-icon">✓</span> Zákazník bol zaškolený do obsluhy regulátora a údržby filtrov.</div>
-        <div class="check-item"><span class="check-icon">✓</span> Záručné podmienky a návody boli odovzdané užívateľovi.</div>
+        <div class="photo-container"><span id="photoPlaceholder1">[ Foto 1 ]</span><img id="photoPreview1" class="photo-preview"></div>
+        <div class="photo-container"><span id="photoPlaceholder2">[ Foto 2 ]</span><img id="photoPreview2" class="photo-preview"></div>
     </div>
 
     <div class="footer-sig">
@@ -588,25 +336,21 @@
         <div class="sig-column">
             <canvas id="sigPad" class="signature-pad"></canvas>
             <button class="btn-clear" onclick="clearSig()">Vymazať podpis</button>
-            <div class="sig-label">Podpis zákazníka (užívateľa)</div>
+            <div class="sig-label">Podpis zákazníka</div>
         </div>
     </div>
     
-    <div style="text-align: center; margin-top: 10px; font-size: 8px; color: #999; border-top: 1px dashed #eee; padding-top: 2px; display: flex; justify-content: space-around;">
-        <span>Dátum: <input type="text" id="datumInput" style="width: 70px; border:none; background:none; font-weight: bold;"></span>
-        <span>| Realizácia: SPEKTRA INSTALL s.r.o.</span>
+    <div style="text-align: center; margin-top: 15px; font-size: 9px; color: #999;">
+        Dátum: <input type="text" id="datumInput" style="width: 80px; font-weight: bold;"> | SPEKTRA INSTALL s.r.o.
     </div>
 </div>
 
 <script>
     window.onload = function() {
         const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        document.getElementById('datumInput').value = `${dd}.${mm}.${yyyy}`;
+        document.getElementById('datumInput').value = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
         if (!document.getElementById('protoCislo').value) {
-            document.getElementById('protoCislo').value = `${yyyy}${mm}${dd}-01`;
+            document.getElementById('protoCislo').value = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`;
         }
         initSignature();
         updateRefrigerantUI();
@@ -614,31 +358,21 @@
 
     window.updateRefrigerantUI = function() {
         const type = document.getElementById('refType').value;
-        const monoblockText = document.getElementById('refMonoblockText');
-        const splitFields = document.getElementById('refSplitFields');
-        
-        if (type === 'R290') {
-            monoblockText.style.display = 'inline';
-            splitFields.style.display = 'none';
-        } else {
-            monoblockText.style.display = 'none';
-            splitFields.style.display = 'flex';
-        }
+        document.getElementById('refMonoblockText').style.display = (type === 'R290') ? 'inline' : 'none';
+        document.getElementById('refSplitFields').style.display = (type === 'R32') ? 'flex' : 'none';
     };
 
     window.previewImage = function(event, previewId, placeholderId) {
         const reader = new FileReader();
-        reader.onload = function() {
-            const output = document.getElementById(previewId);
+        reader.onload = () => {
+            const out = document.getElementById(previewId);
             document.getElementById(placeholderId).style.display = 'none';
-            output.src = reader.result;
-            output.style.display = 'block';
-        }
+            out.src = reader.result; out.style.display = 'block';
+        };
         if(event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
-    }
+    };
 
     let canvas, ctx, drawing = false;
-
     function initSignature() {
         canvas = document.getElementById('sigPad');
         ctx = canvas.getContext('2d');
@@ -646,44 +380,17 @@
         canvas.width = canvas.offsetWidth * ratio;
         canvas.height = canvas.offsetHeight * ratio;
         ctx.scale(ratio, ratio);
-        ctx.lineWidth = 1.5;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#00008B';
-
-        const start = (e) => {
-            drawing = true;
-            ctx.beginPath();
-            const pos = getPos(e);
-            ctx.moveTo(pos.x, pos.y);
-        };
-        const draw = (e) => {
-            if (!drawing) return;
-            e.preventDefault();
-            const pos = getPos(e);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-        };
-        const stop = () => { drawing = false; };
-
-        canvas.addEventListener('mousedown', start);
-        canvas.addEventListener('mousemove', draw);
-        window.addEventListener('mouseup', stop);
-        canvas.addEventListener('touchstart', start);
-        canvas.addEventListener('touchmove', draw);
-        canvas.addEventListener('touchend', stop);
+        ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#00008B';
+        const getP = (e) => ({ 
+            x: (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left, 
+            y: (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top 
+        });
+        const start = (e) => { drawing = true; ctx.beginPath(); const p = getP(e); ctx.moveTo(p.x, p.y); };
+        const move = (e) => { if(!drawing) return; e.preventDefault(); const p = getP(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+        canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', () => drawing=false);
+        canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', () => drawing=false);
     }
-
-    function getPos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-
-    window.clearSig = function() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    window.clearSig = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
 </script>
-
 </body>
 </html>
