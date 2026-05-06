@@ -4,6 +4,217 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protokol o uvedení do prevádzky - Vaillant | SPEKTRA INSTALL</title>
+    <!-- Firebase Libraries -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, query, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vaillant-protokol-spektra';
+
+        // Utility to show messages instead of alert()
+        window.showMessage = function(text, type = 'info') {
+            const box = document.getElementById('messageBox');
+            box.textContent = text;
+            box.style.backgroundColor = type === 'error' ? '#d32f2f' : '#00897B';
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 4000);
+        };
+
+        window.saveToArchive = async function() {
+            const user = auth.currentUser;
+            if (!user) {
+                window.showMessage("Chyba: Používateľ nie je prihlásený.", 'error');
+                return;
+            }
+
+            const loader = document.getElementById('globalLoader');
+            loader.style.display = 'flex';
+
+            try {
+                const canvas = document.getElementById('sigPad');
+                const signatureData = canvas.toDataURL();
+                const photo1 = document.getElementById('photoPreview1').src;
+                const photo2 = document.getElementById('photoPreview2').src;
+
+                const data = {
+                    protoCislo: document.getElementById('protoCislo').value,
+                    zakaznikMeno: document.getElementById('zakaznikMeno').value,
+                    zakaznikAdresa: document.getElementById('zakaznikAdresa').value,
+                    extModel: document.getElementById('extModel').value,
+                    extSerial: document.getElementById('extSerial').value,
+                    intModel: document.getElementById('intModel').value,
+                    intSerial: document.getElementById('intSerial').value,
+                    tankType: document.getElementById('tankType').value,
+                    tankVol: document.getElementById('tankVol').value,
+                    refType: document.getElementById('refType').value,
+                    refVacuum: document.getElementById('refVacuum').value,
+                    refPressure: document.getElementById('refPressure').value,
+                    refAmbientTemp: document.getElementById('refAmbientTemp').value,
+                    hardness: document.getElementById('hardness').value,
+                    ph: document.getElementById('ph').value,
+                    pPress: document.getElementById('pPress').value,
+                    oPress: document.getElementById('oPress').value,
+                    ePress: document.getElementById('ePress').value,
+                    flowMin: document.getElementById('flowMin').value,
+                    volSys: document.getElementById('volSys').value,
+                    magFilter: document.getElementById('magFilter').value,
+                    curve: document.getElementById('curve').value,
+                    bival: document.getElementById('bival').value,
+                    dhwTemp: document.getElementById('dhwTemp').value,
+                    maxOut: document.getElementById('maxOut').value,
+                    limit: document.getElementById('limit').value,
+                    flowAct: document.getElementById('flowAct').value,
+                    notes: document.getElementById('notes').value,
+                    signature: signatureData,
+                    photo1: photo1.startsWith('data:') ? photo1 : null,
+                    photo2: photo2.startsWith('data:') ? photo2 : null,
+                    createdAt: new Date().toISOString(),
+                    datum: document.getElementById('datumInput').value
+                };
+
+                const docId = `${data.protoCislo}_${data.zakaznikMeno.replace(/\s+/g, '_')}`;
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'protocols', docId), data);
+                
+                window.showMessage("Protokol bol úspešne uložený do archívu.");
+            } catch (error) {
+                console.error("Error saving document: ", error);
+                window.showMessage("Chyba pri ukladaní: " + error.message, 'error');
+            } finally {
+                loader.style.display = 'none';
+            }
+        };
+
+        window.openArchive = async function() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const modal = document.getElementById('archiveModal');
+            const list = document.getElementById('archiveList');
+            list.innerHTML = '<p style="text-align:center; padding:20px;">Načítavam záznamy...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
+                list.innerHTML = '';
+                
+                if (querySnapshot.empty) {
+                    list.innerHTML = '<p style="text-align:center; padding:20px;">Žiadne záznamy sa nenašli.</p>';
+                    return;
+                }
+
+                querySnapshot.forEach((docSnap) => {
+                    const item = docSnap.data();
+                    const row = document.createElement('div');
+                    row.className = 'archive-item';
+                    row.innerHTML = `
+                        <div>
+                            <strong>${item.protoCislo}</strong> - ${item.zakaznikMeno}<br>
+                            <small>${item.datum || ''} | ${item.zakaznikAdresa || ''}</small>
+                        </div>
+                        <button class="btn-select" onclick="loadProtocolData('${docSnap.id}')">Otvoriť</button>
+                    `;
+                    list.appendChild(row);
+                });
+            } catch (error) {
+                list.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Chyba pri načítaní archívu.</p>';
+            }
+        };
+
+        window.loadProtocolData = async function(docId) {
+            const loader = document.getElementById('globalLoader');
+            loader.style.display = 'flex';
+            document.getElementById('archiveModal').style.display = 'none';
+
+            try {
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
+                const docSnap = querySnapshot.docs.find(d => d.id === docId);
+                
+                if (docSnap) {
+                    const data = docSnap.data();
+                    
+                    document.getElementById('protoCislo').value = data.protoCislo || '';
+                    document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
+                    document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
+                    document.getElementById('extModel').value = data.extModel || '';
+                    document.getElementById('extSerial').value = data.extSerial || '';
+                    document.getElementById('intModel').value = data.intModel || '';
+                    document.getElementById('intSerial').value = data.intSerial || '';
+                    document.getElementById('tankType').value = data.tankType || '';
+                    document.getElementById('tankVol').value = data.tankVol || '';
+                    
+                    document.getElementById('refType').value = data.refType || 'R290';
+                    updateRefrigerantUI();
+                    document.getElementById('refVacuum').value = data.refVacuum || '';
+                    document.getElementById('refPressure').value = data.refPressure || '';
+                    document.getElementById('refAmbientTemp').value = data.refAmbientTemp || '';
+
+                    document.getElementById('hardness').value = data.hardness || '8.0';
+                    document.getElementById('ph').value = data.ph || '8.0';
+                    document.getElementById('pPress').value = data.pPress || '1.2';
+                    document.getElementById('oPress').value = data.oPress || '1.5';
+                    document.getElementById('ePress').value = data.ePress || '1.0';
+                    document.getElementById('flowMin').value = data.flowMin || '';
+                    document.getElementById('volSys').value = data.volSys || '';
+                    document.getElementById('magFilter').value = data.magFilter || 'Áno';
+                    document.getElementById('curve').value = data.curve || '0.5';
+                    document.getElementById('bival').value = data.bival || '-7';
+                    document.getElementById('dhwTemp').value = data.dhwTemp || '50';
+                    document.getElementById('maxOut').value = data.maxOut || '45';
+                    document.getElementById('limit').value = data.limit || '';
+                    document.getElementById('flowAct').value = data.flowAct || '';
+                    document.getElementById('notes').value = data.notes || '';
+                    document.getElementById('datumInput').value = data.datum || '';
+
+                    if (data.photo1) {
+                        document.getElementById('photoPreview1').src = data.photo1;
+                        document.getElementById('photoPreview1').style.display = 'block';
+                        document.getElementById('photoPlaceholder1').style.display = 'none';
+                    }
+                    if (data.photo2) {
+                        document.getElementById('photoPreview2').src = data.photo2;
+                        document.getElementById('photoPreview2').style.display = 'block';
+                        document.getElementById('photoPlaceholder2').style.display = 'none';
+                    }
+
+                    if (data.signature) {
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = document.getElementById('sigPad');
+                            const ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+                        };
+                        img.src = data.signature;
+                    }
+                    window.showMessage("Dáta boli načítané.");
+                }
+            } catch (error) {
+                window.showMessage("Chyba pri načítaní dát.", 'error');
+            } finally {
+                loader.style.display = 'none';
+            }
+        };
+
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+
+        initAuth();
+    </script>
+
     <style>
         :root {
             --vaillant-teal: #00897B;
@@ -74,7 +285,7 @@
         th, td { padding: 2px 6px; text-align: left; }
         th { background-color: white; width: 25%; font-weight: 600; color: #555; }
 
-        input[type="text"] {
+        input[type="text"], textarea, select {
             width: 100%;
             border: none;
             border-bottom: 1px dashed #ddd;
@@ -82,8 +293,9 @@
             font-size: inherit;
             padding: 0;
             background-color: transparent;
+            resize: none;
         }
-        input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
+        input:focus, textarea:focus, select:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
 
         .photo-grid { display: flex; gap: 8px; margin-top: 4px; }
         .photo-container {
@@ -103,6 +315,16 @@
         .checkbox-section { margin: 4px 0; font-size: 9.5px; }
         .check-item { display: flex; align-items: center; gap: 6px; margin-bottom: 1px; }
         .check-icon { color: var(--vaillant-teal); font-weight: bold; }
+
+        .notes-area {
+            width: 100%;
+            font-size: 10px;
+            min-height: 35px;
+            padding: 5px;
+            box-sizing: border-box;
+            background-color: #fcfcfc;
+            border: 1px solid #eee;
+        }
 
         .footer-sig { 
             margin-top: 10px; 
@@ -131,6 +353,7 @@
         }
         #stampImg { max-height: 75px; max-width: 100%; object-fit: contain; }
 
+        /* Controls */
         .controls {
             position: fixed;
             bottom: 20px;
@@ -153,25 +376,58 @@
             gap: 6px;
             font-size: 12px;
             color: white;
+            text-align: center;
+            justify-content: center;
         }
         .btn-print { background: var(--vaillant-teal); }
+        .btn-archive { background: #1976D2; }
+        .btn-save { background: #2E7D32; }
         .btn-photo { background: #444; }
         .btn-clear { background: #d32f2f; padding: 3px 8px; font-size: 8px; margin-top: 1px; border: none; border-radius: 3px; color: white; cursor: pointer; }
+
+        #archiveModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000;
+        }
+        .modal-content {
+            background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;
+        }
+        .archive-item {
+            display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;
+        }
+        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+
+        #globalLoader {
+            position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7);
+            display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal);
+        }
+
+        #messageBox {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
 
         @media print {
             body { background: white; padding: 0; }
             .paper { box-shadow: none; margin: 0; width: 100%; padding: 4mm 8mm; }
-            .controls, .btn-clear, .photo-placeholder { display: none !important; }
-            input { border-bottom: none !important; }
+            .controls, .btn-clear, .photo-placeholder, #archiveModal, #globalLoader, #messageBox { display: none !important; }
+            input, textarea, select { border-bottom: none !important; }
             .signature-pad { border: none; background: transparent; }
+            .notes-area { border: 1px solid #eee; background: transparent; }
             h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; color: white !important; }
+            select { appearance: none; -webkit-appearance: none; }
         }
     </style>
 </head>
 <body>
 
+<div id="globalLoader">Spracovávam...</div>
+<div id="messageBox"></div>
+
 <div class="controls">
-    <button class="btn btn-print" onclick="window.print()">Tlačiť / Uložiť PDF</button>
+    <button class="btn btn-save" onclick="saveToArchive()">Uložiť do archívu</button>
+    <button class="btn btn-archive" onclick="openArchive()">Otvoriť archív</button>
+    <button class="btn btn-print" onclick="window.print()">Tlačiť / PDF</button>
     <label class="btn btn-photo">
         Foto 1
         <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')">
@@ -180,6 +436,14 @@
         Foto 2
         <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')">
     </label>
+</div>
+
+<div id="archiveModal" onclick="this.style.display='none'">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h3 style="margin-top:0; color:var(--vaillant-teal);">Archív protokolov</h3>
+        <div id="archiveList"></div>
+        <button class="btn" style="background:#555; width:100%; margin-top:15px;" onclick="document.getElementById('archiveModal').style.display='none'">Zavrieť</button>
+    </div>
 </div>
 
 <div class="paper">
@@ -197,14 +461,15 @@
             <tr>
                 <th style="vertical-align: top;">Zákazník / Miesto inštalácie</th>
                 <td>
-                    Meno: <input type="text"><br>
-                    Adresa: <input type="text">
+                    Meno: <input type="text" id="zakaznikMeno"><br>
+                    Adresa: <input type="text" id="zakaznikAdresa">
                 </td>
             </tr>
             <tr>
-                <th>Autorizovaný servis (VSP)</th>
-                <td style="font-size: 8.5px;">
-                    <strong>SPEKTRA INSTALL s.r.o.</strong> | Rajecká Lesná 98, 013 15<br>
+                <th style="vertical-align: top;">Autorizovaný servis (VSP)</th>
+                <td>
+                    <strong>SPEKTRA INSTALL s.r.o.</strong><br>
+                    Hollého 210, 015 01 Rajec<br>
                     IČO: 53690036 | DIČ: 2121459450 | Technik: <strong>Pavol Pastorek</strong>
                 </td>
             </tr>
@@ -215,57 +480,85 @@
     <table>
         <tr>
             <th>Vonkajšia jednotka</th>
-            <td>Model: <input type="text"></td>
-            <td>Sériové č.: <input type="text"></td>
+            <td>Model: <input type="text" id="extModel"></td>
+            <td>Sériové č.: <input type="text" id="extSerial"></td>
         </tr>
         <tr>
             <th>Vnútorná jednotka</th>
-            <td>Model: <input type="text"></td>
-            <td>Sériové č.: <input type="text"></td>
+            <td>Model: <input type="text" id="intModel"></td>
+            <td>Sériové č.: <input type="text" id="intSerial"></td>
         </tr>
         <tr>
             <th>Zásobník / Iné</th>
-            <td>Typ: <input type="text"></td>
-            <td>Objem: <input type="text" style="width: 40px;"> l</td>
+            <td>Typ: <input type="text" id="tankType"></td>
+            <td>Objem: <input type="text" id="tankVol" style="width: 40px;"> l</td>
         </tr>
     </table>
 
-    <h2>2. KVALITA VODY A HYDRAULIKA (VDI 2035)</h2>
+    <h2>2. CHLADIVOVÝ OKRUH</h2>
     <table>
         <tr>
-            <td style="width: 33%;">Tvrdosť: <input type="text" style="width: 40px;" value="8.0"> °dH</td>
-            <td style="width: 33%;">pH vody: <input type="text" style="width: 40px;" value="8.0"></td>
-            <td>Vodivosť: <input type="text" style="width: 40px;"> µS/cm</td>
+            <th style="width: 25%;">Typ chladiva:</th>
+            <td style="width: 25%;">
+                <select id="refType" onchange="updateRefrigerantUI()">
+                    <option value="R290">R290 (Monoblok)</option>
+                    <option value="R32">R32 (Split)</option>
+                </select>
+            </td>
+            <td colspan="2" id="refInfoContainer">
+                <span id="refMonoblockText" style="font-weight:bold; color:var(--vaillant-teal);">Hermeticky uzavretý monoblok</span>
+                <div id="refSplitFields" style="display:none; gap:10px; align-items:center;">
+                    Vakuovanie: <input type="text" id="refVacuum" style="width: 40px;"> mbar | 
+                    Tlak: <input type="text" id="refPressure" style="width: 40px;"> bar
+                </div>
+            </td>
         </tr>
         <tr>
-            <td>Plniaci tlak: <input type="text" style="width: 40px;" value="1.2"> bar</td>
-            <td>Prevádzkový tlak: <input type="text" style="width: 40px;" value="1.5"> bar</td>
-            <td>Expanzia (predtlak): <input type="text" style="width: 40px;" value="1.0"> bar</td>
-        </tr>
-        <tr>
-            <td>Minimálny prietok: <input type="text" style="width: 40px;"> l/min</td>
-            <td>Objem sústavy: <input type="text" style="width: 40px;"> l</td>
-            <td>Magnetický filter: <input type="text" style="width: 60px;" value="Áno"></td>
+            <th>Teplota prostredia:</th>
+            <td colspan="3">
+                <input type="text" id="refAmbientTemp" style="width: 50px;"> °C
+            </td>
         </tr>
     </table>
 
-    <h2>3. SOFTVÉROVÁ KONFIGURÁCIA A MERANIA</h2>
+    <h2>3. KVALITA VODY A HYDRAULIKA (VDI 2035)</h2>
     <table>
         <tr>
-            <td style="width: 50%;">Vykurovacia krivka: <input type="text" style="width: 50px;" value="0.5"></td>
-            <td>Bivalentný bod: <input type="text" style="width: 50px;" value="-7"> °C</td>
+            <td style="width: 50%;">Tvrdosť: <input type="text" id="hardness" style="width: 40px;" value="8.0"> °dH</td>
+            <td>pH vody: <input type="text" id="ph" style="width: 40px;" value="8.0"></td>
         </tr>
         <tr>
-            <td>Teplota TÚV: <input type="text" style="width: 50px;" value="50"> °C</td>
-            <td>Max. teplota výstupu: <input type="text" style="width: 50px;" value="45"> °C</td>
+            <td>Plniaci tlak: <input type="text" id="pPress" style="width: 40px;" value="1.2"> bar</td>
+            <td>Prevádzkový tlak: <input type="text" id="oPress" style="width: 40px;" value="1.5"> bar</td>
+            <td>Expanzia (predtlak): <input type="text" id="ePress" style="width: 40px;" value="1.0"> bar</td>
         </tr>
         <tr>
-            <td>Doplnkový ohrev (limit): <input type="text" style="width: 50px;"> kW</td>
-            <td>Aktuálny prietok: <input type="text" style="width: 50px;"> l/h</td>
+            <td>Minimálny prietok: <input type="text" id="flowMin" style="width: 40px;"> l/min</td>
+            <td>Objem sústavy: <input type="text" id="volSys" style="width: 40px;"> l</td>
+            <td>Magnetický filter: <input type="text" id="magFilter" style="width: 60px;" value="Áno"></td>
         </tr>
     </table>
 
-    <h2>4. FOTODOKUMENTÁCIA</h2>
+    <h2>4. SOFTVÉROVÁ KONFIGURÁCIA A MERANIA</h2>
+    <table>
+        <tr>
+            <td style="width: 50%;">Vykurovacia krivka: <input type="text" id="curve" style="width: 50px;" value="0.5"></td>
+            <td>Bivalentný bod: <input type="text" id="bival" style="width: 50px;" value="-7"> °C</td>
+        </tr>
+        <tr>
+            <td>Teplota TÚV: <input type="text" id="dhwTemp" style="width: 50px;" value="50"> °C</td>
+            <td>Max. teplota výstupu: <input type="text" id="maxOut" style="width: 50px;" value="45"> °C</td>
+        </tr>
+        <tr>
+            <td>Doplnkový ohrev (limit): <input type="text" id="limit" style="width: 50px;"> kW</td>
+            <td>Aktuálny prietok: <input type="text" id="flowAct" style="width: 50px;"> l/h</td>
+        </tr>
+    </table>
+
+    <h2>5. POZNÁMKY / ŠPECIFIKÁCIA ZOSTAVY</h2>
+    <textarea id="notes" class="notes-area" placeholder="Doplňte popis zostavy..."></textarea>
+
+    <h2>6. FOTODOKUMENTÁCIA</h2>
     <div class="photo-grid">
         <div class="photo-container">
             <span id="photoPlaceholder1" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 8px;">[ Foto 1 ]</span>
@@ -277,7 +570,7 @@
         </div>
     </div>
 
-    <h2>5. KONTROLA A ODOVZDANIE</h2>
+    <h2>7. KONTROLA A ODOVZDANIE</h2>
     <div class="checkbox-section">
         <div class="check-item"><span class="check-icon">✓</span> Zariadenie pracuje v stanovených medziach bez chybových hlásení.</div>
         <div class="check-item"><span class="check-icon">✓</span> Vykonaná skúška tesnosti hydrauliky a vizuálna kontrola spojov.</div>
@@ -288,7 +581,7 @@
     <div class="footer-sig">
         <div class="sig-column">
             <div class="stamp-area">
-                <img src="Razitko a podpis.jpg" id="stampImg" alt="Pečiatka a podpis technika" onerror="this.style.display='none'">
+                <img src="Razitko a podpis.jpg" id="stampImg" alt="Pečiatka" onerror="this.style.display='none'">
             </div>
             <div class="sig-label">Podpis a pečiatka technika (VSP)</div>
         </div>
@@ -312,11 +605,28 @@
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         document.getElementById('datumInput').value = `${dd}.${mm}.${yyyy}`;
-        document.getElementById('protoCislo').value = `${yyyy}${mm}${dd}-01`;
+        if (!document.getElementById('protoCislo').value) {
+            document.getElementById('protoCislo').value = `${yyyy}${mm}${dd}-01`;
+        }
         initSignature();
+        updateRefrigerantUI();
     };
 
-    function previewImage(event, previewId, placeholderId) {
+    window.updateRefrigerantUI = function() {
+        const type = document.getElementById('refType').value;
+        const monoblockText = document.getElementById('refMonoblockText');
+        const splitFields = document.getElementById('refSplitFields');
+        
+        if (type === 'R290') {
+            monoblockText.style.display = 'inline';
+            splitFields.style.display = 'none';
+        } else {
+            monoblockText.style.display = 'none';
+            splitFields.style.display = 'flex';
+        }
+    };
+
+    window.previewImage = function(event, previewId, placeholderId) {
         const reader = new FileReader();
         reader.onload = function() {
             const output = document.getElementById(previewId);
@@ -370,7 +680,7 @@
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    function clearSig() {
+    window.clearSig = function() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 </script>
