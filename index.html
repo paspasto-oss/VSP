@@ -8,16 +8,16 @@
         :root {
             --vaillant-teal: #00897B;
             --border-color: #bbbbbb;
-            --bg-gray: #f2f2f2;
-            --input-bg: rgba(0, 137, 123, 0.02);
+            --bg-gray: #f9f9f9;
+            --input-bg: rgba(0, 137, 123, 0.01);
         }
 
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            line-height: 1.3; 
+            line-height: 1.2; 
             color: #333; 
             margin: 0; 
-            padding: 10px; 
+            padding: 5px; 
             background-color: #f0f2f5; 
         }
 
@@ -26,48 +26,51 @@
             background: white; 
             width: 210mm; 
             min-height: 296mm; 
-            padding: 10mm 15mm; 
-            margin: 10px auto; 
+            padding: 8mm 12mm; 
+            margin: 5px auto; 
             box-shadow: 0 5px 25px rgba(0,0,0,0.1); 
             position: relative; 
             box-sizing: border-box;
-            border-radius: 4px;
         }
         
         header { 
             display: flex; 
             justify-content: space-between; 
-            align-items: center; 
-            border-bottom: 3px solid var(--vaillant-teal); 
-            padding-bottom: 8px; 
-            margin-bottom: 12px; 
+            align-items: flex-start; 
+            border-bottom: 2px solid var(--vaillant-teal); 
+            padding-bottom: 5px; 
+            margin-bottom: 10px; 
         }
 
         .logo-text { 
             color: var(--vaillant-teal); 
             font-weight: 800; 
-            font-size: 30px; 
-            letter-spacing: -1.5px; 
+            font-size: 28px; 
+            letter-spacing: -1px; 
             margin: 0;
             line-height: 1;
         }
 
         .title-block { text-align: right; }
         h1 { 
-            font-size: 17px; 
+            font-size: 18px; 
             margin: 0; 
             color: var(--vaillant-teal); 
             text-transform: uppercase; 
             letter-spacing: 0.5px;
         }
+        .subtitle {
+            font-size: 10px;
+            font-weight: bold;
+            color: #444;
+        }
         
         h2 { 
-            font-size: 12px; 
+            font-size: 11px; 
             background: var(--vaillant-teal); 
             color: white; 
-            padding: 5px 10px; 
-            margin-top: 10px; 
-            margin-bottom: 8px; 
+            padding: 4px 10px; 
+            margin: 8px 0 5px 0; 
             border-radius: 2px;
             text-transform: uppercase;
         }
@@ -75,59 +78,63 @@
         table { 
             width: 100%; 
             border-collapse: collapse; 
-            margin-bottom: 8px; 
-            font-size: 12px; 
+            margin-bottom: 5px; 
+            font-size: 11px; 
         }
 
         table, th, td { border: 1px solid var(--border-color); }
-        th, td { padding: 4px 8px; text-align: left; }
-        th { background-color: var(--bg-gray); width: 28%; font-weight: 600; }
+        th, td { padding: 3px 8px; text-align: left; }
+        th { background-color: white; width: 25%; font-weight: 600; color: #555; }
 
-        input[type="text"], input[type="number"], textarea {
+        input[type="text"], input[type="number"] {
             width: 100%;
-            border: 1px transparent;
-            border-bottom: 1px dashed #ccc;
+            border: none;
+            border-bottom: 1px dashed #ddd;
             font-family: inherit;
             font-size: inherit;
-            padding: 1px 3px;
+            padding: 0px 2px;
             box-sizing: border-box;
-            background-color: var(--input-bg);
+            background-color: transparent;
         }
         
         input:focus {
             outline: none;
             border-bottom: 1px solid var(--vaillant-teal);
-            background-color: white;
         }
 
-        .checkbox-section { margin: 5px 0; font-size: 11.5px; }
+        .checkbox-section { margin: 5px 0; font-size: 11px; }
         .check-item { 
-            margin-bottom: 4px; 
+            margin-bottom: 3px; 
             display: flex; 
             align-items: center; 
             gap: 8px; 
+        }
+        .check-icon {
+            color: var(--vaillant-teal);
+            font-weight: bold;
         }
         
         .footer-sig { 
             margin-top: 25px; 
             display: flex; 
             justify-content: space-between; 
-            font-size: 10px; 
+            font-size: 9px; 
         }
         .sig-box { 
             border-top: 1px solid #333; 
-            width: 40%; 
+            width: 38%; 
             text-align: center; 
             margin-top: 30px; 
-            padding-top: 5px; 
+            padding-top: 4px; 
+            color: #666;
         }
 
         .photo-container {
-            margin-top: 10px;
+            margin-top: 5px;
             border: 1px dashed #ccc;
-            padding: 5px;
+            padding: 4px;
             text-align: center;
-            min-height: 80px;
+            min-height: 60px;
             background-color: #fafafa;
             display: flex;
             align-items: center;
@@ -136,7 +143,7 @@
         }
         #photoPreview {
             max-width: 100%;
-            max-height: 280px; /* Zmenšené pre úsporu miesta */
+            max-height: 250px;
             display: none;
             border-radius: 2px;
         }
@@ -173,7 +180,7 @@
             left: 50%; 
             transform: translate(-50%, -50%) rotate(-45deg); 
             font-size: 80px; 
-            color: rgba(0,137,123,0.015); 
+            color: rgba(0,137,123,0.012); 
             pointer-events: none; 
             white-space: nowrap; 
             font-weight: bold;
@@ -182,12 +189,12 @@
 
         @media print {
             body { background: white; padding: 0; }
-            .paper { box-shadow: none; margin: 0; width: 100%; border: none; padding: 5mm 10mm; min-height: auto; }
+            .paper { box-shadow: none; margin: 0; width: 100%; border: none; padding: 5mm 8mm; min-height: auto; }
             .controls, #photoPlaceholder { display: none !important; }
             input { border-bottom: none !important; background: transparent !important; padding: 0 !important; }
             input::placeholder { color: transparent; }
             .photo-container { border: none !important; padding: 0 !important; background: none !important; min-height: auto; }
-            h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; }
+            h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; color: white !important; }
         }
     </style>
 </head>
@@ -211,23 +218,23 @@
     <header>
         <div class="logo-container"><p class="logo-text">Vaillant</p></div>
         <div class="title-block">
-            <h1>Protokol o uvedení do prevádzky</h1>
-            <small style="color: #555; font-weight: bold; font-size: 11px;">Tepelné čerpadlo / Systémové riešenie</small>
+            <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
+            <div class="subtitle">Tepelné čerpadlo / Systémové riešenie</div>
         </div>
     </header>
 
     <section>
         <table>
             <tr>
-                <th>Zákazník / Miesto inštalácie</th>
+                <th style="vertical-align: top;">Zákazník / Miesto inštalácie</th>
                 <td>
-                    Meno: <input type="text" placeholder="Meno zákazníka..."><br>
-                    Adresa: <input type="text" placeholder="Ulica, obec...">
+                    Meno: <input type="text"><br>
+                    Adresa: <input type="text">
                 </td>
             </tr>
             <tr>
                 <th>Autorizovaný servis (VSP)</th>
-                <td>
+                <td style="font-size: 10px;">
                     <strong>SPEKTRA INSTALL</strong> | Hollého 210, 015 01 Rajec<br>
                     IČO: 53690036 | DIČ: 2121459450 | Technik: <strong>Pavol Pastorek</strong>
                 </td>
@@ -235,63 +242,62 @@
         </table>
     </section>
 
-    <h2>1. Identifikácia zariadenia</h2>
+    <h2>1. IDENTIFIKÁCIA ZARIADENIA</h2>
     <table>
         <tr>
             <th>Vonkajšia jednotka</th>
-            <td>Model: <input type="text" style="width: 140px;"> Sériové č.: <input type="text" style="width: 180px;"></td>
+            <td style="width: 35%;">Model: <input type="text"></td>
+            <td>Sériové č.: <input type="text"></td>
         </tr>
         <tr>
             <th>Vnútorná jednotka</th>
-            <td>Model: <input type="text" style="width: 140px;"> Sériové č.: <input type="text" style="width: 180px;"></td>
+            <td>Model: <input type="text"></td>
+            <td>Sériové č.: <input type="text"></td>
         </tr>
         <tr>
             <th>Zásobník / Iné</th>
-            <td>Typ: <input type="text" style="width: 140px;"> Objem: <input type="text" style="width: 40px;"> l</td>
+            <td>Typ: <input type="text"></td>
+            <td>Objem: <input type="text" style="width: 40px;"> l</td>
         </tr>
     </table>
 
-    <h2>2. Kvalita vody a hydraulika (VDI 2035)</h2>
+    <h2>2. KVALITA VODY A HYDRAULIKA (VDI 2035)</h2>
     <table>
         <tr>
-            <td>Tvrdosť: <input type="text" style="width: 45px;"> °dH</td>
-            <td>pH: <input type="text" style="width: 45px;"></td>
-            <td>Magnetický filter: <input type="text" style="width: 70px;"></td>
+            <td style="width: 33%;">Tvrdosť: <input type="text" style="width: 40px;"> °dH</td>
+            <td style="width: 33%;">pH: <input type="text" style="width: 40px;"></td>
+            <td>Magnetický filter: <input type="text" style="width: 60px;"></td>
         </tr>
         <tr>
-            <td>Tlak syst.: <input type="text" style="width: 45px;"> bar</td>
-            <td>Prietok: <input type="text" style="width: 45px;"> l/min</td>
-            <td>Expanzia: <input type="text" style="width: 45px;"> bar</td>
+            <td>Tlak syst.: <input type="text" style="width: 40px;"> bar</td>
+            <td>Prietok: <input type="text" style="width: 40px;"> l/min</td>
+            <td>Expanzia: <input type="text" style="width: 40px;"> bar</td>
         </tr>
     </table>
 
-    <h2>3. Softvérová konfigurácia</h2>
+    <h2>3. SOFTVÉROVÁ KONFIGURÁCIA</h2>
     <table>
         <tr>
-            <th>Vykurovacia krivka</th>
-            <td><input type="text" style="width: 60px;"></td>
-            <th>Bivalentný bod</th>
-            <td><input type="text" style="width: 60px;"> °C</td>
+            <td style="width: 50%;">Vykurovacia krivka: <input type="text" style="width: 60px;"></td>
+            <td>Bivalentný bod: <input type="text" style="width: 60px;"> °C</td>
         </tr>
         <tr>
-            <th>Max. teplota výstupu</th>
-            <td><input type="text" style="width: 60px;"> °C</td>
-            <th>Doplnkový ohrev</th>
-            <td><input type="text" style="width: 60px;"> kW</td>
+            <td>Max. teplota výstupu: <input type="text" style="width: 60px;"> °C</td>
+            <td>Doplnkový ohrev: <input type="text" style="width: 60px;"> kW</td>
         </tr>
     </table>
 
-    <h2>4. Fotodokumentácia</h2>
+    <h2>4. FOTODOKUMENTÁCIA</h2>
     <div class="photo-container">
-        <span id="photoPlaceholder" style="color: #aaa; font-style: italic; font-size: 11px;">[ Tu sa zobrazí vložená fotografia ]</span>
+        <span id="photoPlaceholder" style="color: #aaa; font-style: italic; font-size: 10px;">[ Tu sa zobrazí vložená fotografia ]</span>
         <img id="photoPreview" alt="Foto">
     </div>
 
-    <h2>5. Kontrola a odovzdanie</h2>
+    <h2>5. KONTROLA A ODOVZDANIE</h2>
     <div class="checkbox-section">
-        <div class="check-item"><input type="checkbox" checked> Zariadenie pracuje bez chýb.</div>
-        <div class="check-item"><input type="checkbox" checked> Vykonaná skúška tesnosti hydrauliky.</div>
-        <div class="check-item"><input type="checkbox" checked> Zákazník bol zaškolený do obsluhy regulátora.</div>
+        <div class="check-item"><span class="check-icon">✓</span> Zariadenie pracuje bez chýb.</div>
+        <div class="check-item"><span class="check-icon">✓</span> Vykonaná skúška tesnosti hydrauliky.</div>
+        <div class="check-item"><span class="check-icon">✓</span> Zákazník bol zaškolený do obsluhy regulátora.</div>
     </div>
 
     <div class="footer-sig">
@@ -299,8 +305,9 @@
         <div class="sig-box">Podpis zákazníka</div>
     </div>
     
-    <div style="text-align: center; margin-top: 20px; font-size: 10px; color: #999; border-top: 1px dashed #eee; padding-top: 5px;">
-        Dátum: <input type="text" style="width: 100px; border:none; background:none;"> | SPEKTRA INSTALL, Rajec
+    <div style="text-align: center; margin-top: 15px; font-size: 9px; color: #999; border-top: 1px dashed #eee; padding-top: 3px; display: flex; justify-content: space-around;">
+        <span>Dátum: <input type="text" style="width: 80px; border:none; background:none; font-weight: bold;"></span>
+        <span>| SPEKTRA INSTALL, Rajec</span>
     </div>
 </div>
 
