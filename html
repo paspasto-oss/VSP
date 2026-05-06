@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protokol o uvedení do prevádzky - Vaillant</title>
+    <style>
+        :root {
+            --vaillant-teal: #00897B;
+            --border-color: #bbbbbb;
+            --bg-gray: #f2f2f2;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            line-height: 1.4; 
+            color: #333; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #e0e0e0; 
+        }
+
+        /* Simulácia A4 papiera */
+        .paper { 
+            background: white; 
+            width: 210mm; 
+            min-height: 297mm; 
+            padding: 15mm 20mm; 
+            margin: 20px auto; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.2); 
+            position: relative; 
+            box-sizing: border-box;
+        }
+        
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 4px solid var(--vaillant-teal); 
+            padding-bottom: 15px; 
+            margin-bottom: 25px; 
+        }
+
+        .logo-text { 
+            color: var(--vaillant-teal); 
+            font-weight: 800; 
+            font-size: 34px; 
+            letter-spacing: -1.5px; 
+            margin: 0;
+        }
+
+        .title-block { text-align: right; }
+        h1 { 
+            font-size: 20px; 
+            margin: 0; 
+            color: var(--vaillant-teal); 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+        }
+        
+        h2 { 
+            font-size: 13px; 
+            background: var(--vaillant-teal); 
+            color: white; 
+            padding: 8px 12px; 
+            margin-top: 15px; 
+            margin-bottom: 10px; 
+            border-radius: 2px;
+            text-transform: uppercase;
+        }
+        
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 12px; 
+            font-size: 12px; 
+        }
+
+        table, th, td { border: 1px solid var(--border-color); }
+        th, td { padding: 6px 10px; text-align: left; }
+        th { background-color: var(--bg-gray); width: 28%; font-weight: 600; }
+
+        /* Vstupné polia */
+        input[type="text"], textarea {
+            width: 100%;
+            border: 1px transparent;
+            border-bottom: 1px dashed #ccc;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 2px 4px;
+            box-sizing: border-box;
+            background-color: rgba(0,137,123,0.02);
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-bottom: 1px solid var(--vaillant-teal);
+            background-color: white;
+        }
+
+        .checkbox-section { margin: 10px 0; font-size: 12px; }
+        .check-item { 
+            margin-bottom: 6px; 
+            display: flex; 
+            align-items: flex-start; 
+            gap: 10px; 
+            cursor: pointer;
+        }
+        
+        .footer-sig { 
+            margin-top: 40px; 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 11px; 
+        }
+        .sig-box { 
+            border-top: 1px solid #333; 
+            width: 42%; 
+            text-align: center; 
+            margin-top: 30px; 
+            padding-top: 8px; 
+        }
+
+        /* Foto sekcia */
+        .photo-container {
+            margin-top: 10px;
+            border: 1px dashed #ccc;
+            padding: 10px;
+            text-align: center;
+            min-height: 100px;
+        }
+        #photoPreview {
+            max-width: 100%;
+            max-height: 350px;
+            display: none;
+            margin: 0 auto;
+            border-radius: 4px;
+        }
+
+        /* Ovládacie prvky */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: white;
+        }
+        .btn-print { background: var(--vaillant-teal); }
+        .btn-photo { background: #555; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .paper { box-shadow: none; margin: 0; width: 100%; border: none; padding: 10mm; }
+            .controls, .btn-photo-input { display: none !important; }
+            input, textarea { border-bottom: none !important; background: transparent !important; padding: 0 !important; }
+            input::placeholder, textarea::placeholder { color: transparent; }
+            .photo-container { border: none !important; padding: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <button class="btn btn-print" onclick="window.print()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        Vytlačiť protokol
+    </button>
+    <label class="btn btn-photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        Vložiť fotku inštalácie
+        <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="previewImage(event)">
+    </label>
+</div>
+
+<div class="paper">
+    <header>
+        <div class="logo-container"><p class="logo-text">Vaillant</p></div>
+        <div class="title-block">
+            <h1>Protokol o uvedení do prevádzky</h1>
+            <small style="color: #666;">Tepelné čerpadlo / Systémové riešenie</small>
+        </div>
+    </header>
+
+    <section>
+        <table>
+            <tr>
+                <th>Zákazník / Miesto inštalácie</th>
+                <td>
+                    Meno: <input type="text" placeholder="Doplniť meno zákazníka..."><br>
+                    Adresa: <input type="text" placeholder="Doplniť adresu miesta inštalácie...">
+                </td>
+            </tr>
+            <tr>
+                <th>Autorizovaný servis (VSP)</th>
+                <td>
+                    Firma: <strong>SPEKTRA INSTALL</strong><br>
+                    Adresa: <strong>Hollého 210, 015 01 Rajec</strong><br>
+                    IČO: <strong>53690036</strong> &nbsp;&nbsp; DIČ: <strong>2121459450</strong><br>
+                    Technik: <strong>Pavol Pastorek</strong>
+                </td>
+            </tr>
+        </table>
+    </section>
+
+    <h2>1. Identifikácia zariadenia</h2>
+    <table>
+        <tr>
+            <th>Vonkajšia jednotka</th>
+            <td>Model: <input type="text" style="width: 150px;"> Sériové č.: <input type="text" style="width: 200px;"></td>
+        </tr>
+        <tr>
+            <th>Vnútorná jednotka / Modul</th>
+            <td>Model: <input type="text" style="width: 150px;"> Sériové č.: <input type="text" style="width: 200px;"></td>
+        </tr>
+        <tr>
+            <th>Zásobník / Príslušenstvo</th>
+            <td>Typ: <input type="text" style="width: 150px;"> Objem: <input type="text" style="width: 60px;"> litrov</td>
+        </tr>
+    </table>
+
+    <h2>2. Kvalita vody a hydraulické parametre (VDI 2035)</h2>
+    <table>
+        <tr>
+            <td>Tvrdosť vody: <input type="text" style="width: 60px;"> °dH</td>
+            <td>pH vody: <input type="text" style="width: 60px;"></td>
+            <td>Magnetický filter: <input type="text" style="width: 80px;" placeholder="Áno / Nie"></td>
+        </tr>
+        <tr>
+            <td>Tlak systéme: <input type="text" style="width: 60px;"> bar</td>
+            <td>Prietok: <input type="text" style="width: 60px;"> l/min</td>
+            <td>Expanzia (predtlak): <input type="text" style="width: 60px;"> bar</td>
+        </tr>
+    </table>
+
+    <h2>3. Softvérová konfigurácia</h2>
+    <table>
+        <tr>
+            <th>Vykurovacia krivka</th>
+            <td><input type="text" style="width: 80px;"></td>
+            <th>Bivalentný bod</th>
+            <td><input type="text" style="width: 80px;"> °C</td>
+        </tr>
+        <tr>
+            <th>Max. teplota výstupu</th>
+            <td><input type="text" style="width: 80px;"> °C</td>
+            <th>Doplnkový ohrev</th>
+            <td><input type="text" style="width: 80px;"> kW</td>
+        </tr>
+    </table>
+
+    <h2>4. Fotodokumentácia inštalácie</h2>
+    <div class="photo-container">
+        <span id="photoPlaceholder" style="color: #999; font-style: italic;">Tu sa zobrazí nahratá fotografia (táto správa sa nevytlačí)</span>
+        <img id="photoPreview" alt="Foto inštalácie">
+    </div>
+
+    <h2>5. Kontrola a odovzdanie</h2>
+    <div class="checkbox-section">
+        <label class="check-item"><input type="checkbox" checked> Zariadenie pracuje bez aktívnych chybových hlásení.</label>
+        <label class="check-item"><input type="checkbox" checked> Vykonaná kontrola tesnosti spojov.</label>
+        <label class="check-item"><input type="checkbox" checked> Zákazník bol zaškolený do obsluhy regulátora.</label>
+        <label class="check-item"><input type="checkbox" checked> Dokumentácia a záručný list boli odovzdané.</label>
+    </div>
+
+    <div class="footer-sig">
+        <div class="sig-box">Podpis a pečiatka technika (VSP)</div>
+        <div class="sig-box">Podpis zákazníka / užívateľa</div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px; font-size: 10px; color: #888; border-top: 1px dashed #ddd; padding-top: 8px;">
+        Dátum spustenia: <input type="text" style="width: 100px; border-bottom: none; background: none;" placeholder="________"> | Realizácia: SPEKTRA INSTALL, Rajec
+    </div>
+</div>
+
+<script>
+    function previewImage(event) {
+        const reader = new FileReader();
+        reader.onload = function() {
+            const output = document.getElementById('photoPreview');
+            const placeholder = document.getElementById('photoPlaceholder');
+            output.src = reader.result;
+            output.style.display = 'block';
+            placeholder.style.display = 'none';
+        }
+        reader.readAsDataURL(event.target.files[0]);
+    }
+</script>
+
+</body>
+</html>
