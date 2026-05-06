@@ -9,19 +9,17 @@
             --vaillant-teal: #00897B;
             --border-color: #bbbbbb;
             --bg-gray: #f9f9f9;
-            --input-bg: rgba(0, 137, 123, 0.01);
         }
 
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            line-height: 1.2; 
+            line-height: 1.15; 
             color: #333; 
             margin: 0; 
             padding: 5px; 
             background-color: #f0f2f5; 
         }
 
-        /* Simulácia A4 papiera */
         .paper { 
             background: white; 
             width: 210mm; 
@@ -39,7 +37,7 @@
             align-items: flex-start; 
             border-bottom: 2px solid var(--vaillant-teal); 
             padding-bottom: 5px; 
-            margin-bottom: 10px; 
+            margin-bottom: 8px; 
         }
 
         .logo-text { 
@@ -53,112 +51,88 @@
 
         .title-block { text-align: right; }
         h1 { 
-            font-size: 18px; 
+            font-size: 16px; 
             margin: 0; 
             color: var(--vaillant-teal); 
             text-transform: uppercase; 
-            letter-spacing: 0.5px;
         }
-        .subtitle {
-            font-size: 10px;
-            font-weight: bold;
-            color: #444;
-        }
-        .protokol-cislo {
-            font-size: 11px;
-            margin-top: 3px;
-            font-weight: bold;
-        }
+        .subtitle { font-size: 9px; font-weight: bold; color: #444; }
+        .protokol-cislo { font-size: 10px; margin-top: 2px; font-weight: bold; }
         
         h2 { 
-            font-size: 11px; 
+            font-size: 10px; 
             background: var(--vaillant-teal); 
             color: white; 
-            padding: 4px 10px; 
-            margin: 8px 0 5px 0; 
+            padding: 3px 10px; 
+            margin: 6px 0 4px 0; 
             border-radius: 2px;
             text-transform: uppercase;
         }
         
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-bottom: 5px; 
-            font-size: 11px; 
-        }
-
+        table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 10.5px; }
         table, th, td { border: 1px solid var(--border-color); }
         th, td { padding: 3px 8px; text-align: left; }
         th { background-color: white; width: 25%; font-weight: 600; color: #555; }
 
-        input[type="text"], input[type="number"] {
+        input[type="text"] {
             width: 100%;
             border: none;
             border-bottom: 1px dashed #ddd;
             font-family: inherit;
             font-size: inherit;
-            padding: 0px 2px;
-            box-sizing: border-box;
+            padding: 0;
             background-color: transparent;
         }
-        
-        input:focus {
-            outline: none;
-            border-bottom: 1px solid var(--vaillant-teal);
-        }
+        input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
 
-        .checkbox-section { margin: 5px 0; font-size: 11px; }
-        .check-item { 
-            margin-bottom: 3px; 
-            display: flex; 
-            align-items: center; 
-            gap: 8px; 
-        }
-        .check-icon {
-            color: var(--vaillant-teal);
-            font-weight: bold;
-        }
-        
-        .footer-sig { 
-            margin-top: 25px; 
-            display: flex; 
-            justify-content: space-between; 
-            font-size: 9px; 
-        }
-        .sig-box { 
-            border-top: 1px solid #333; 
-            width: 38%; 
-            text-align: center; 
-            margin-top: 30px; 
-            padding-top: 4px; 
-            color: #666;
-        }
-
-        /* Foto sekcia */
-        .photo-grid {
-            display: flex;
-            gap: 10px;
-            margin-top: 5px;
-        }
+        .photo-grid { display: flex; gap: 8px; margin-top: 4px; }
         .photo-container {
             flex: 1;
             border: 1px dashed #ccc;
-            padding: 4px;
+            padding: 2px;
             text-align: center;
-            min-height: 80px;
+            min-height: 70px;
             background-color: #fafafa;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 4px;
-            overflow: hidden;
         }
-        .photo-preview {
-            max-width: 100%;
-            max-height: 200px;
-            display: none;
-            border-radius: 2px;
+        .photo-preview { max-width: 100%; max-height: 160px; display: none; border-radius: 2px; }
+
+        .checkbox-section { margin: 4px 0; font-size: 10px; }
+        .check-item { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+        .check-icon { color: var(--vaillant-teal); font-weight: bold; }
+
+        /* Podpisové sekcie */
+        .footer-sig { 
+            margin-top: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            gap: 20px;
         }
+        .sig-column { width: 45%; text-align: center; }
+        .sig-label { font-size: 9px; color: #666; margin-top: 4px; border-top: 1px solid #333; padding-top: 2px; }
+        
+        /* Canvas pre podpis zákazníka */
+        .signature-pad {
+            border: 1px solid #eee;
+            background-color: #fcfcfc;
+            width: 100%;
+            height: 90px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        /* Miesto pre pečiatku technika */
+        .stamp-area {
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #stampImg { max-height: 90px; max-width: 100%; object-fit: contain; }
 
         .controls {
             position: fixed;
@@ -166,47 +140,33 @@
             right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             z-index: 1000;
         }
 
         .btn {
-            padding: 10px 18px;
+            padding: 8px 16px;
             border: none;
             border-radius: 50px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.2);
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 13px;
+            gap: 6px;
+            font-size: 12px;
             color: white;
         }
         .btn-print { background: var(--vaillant-teal); }
         .btn-photo { background: #444; }
-
-        .watermark { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%) rotate(-45deg); 
-            font-size: 80px; 
-            color: rgba(0,137,123,0.012); 
-            pointer-events: none; 
-            white-space: nowrap; 
-            font-weight: bold;
-            z-index: 0;
-        }
+        .btn-clear { background: #d32f2f; padding: 4px 10px; font-size: 9px; margin-top: 2px; border: none; border-radius: 4px; color: white; cursor: pointer; }
 
         @media print {
             body { background: white; padding: 0; }
-            .paper { box-shadow: none; margin: 0; width: 100%; border: none; padding: 5mm 8mm; min-height: auto; }
-            .controls, .photo-placeholder { display: none !important; }
-            input { border-bottom: none !important; background: transparent !important; padding: 0 !important; }
-            input::placeholder { color: transparent; }
-            .photo-container { border: none !important; padding: 0 !important; background: none !important; min-height: auto; }
-            h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; color: white !important; }
+            .paper { box-shadow: none; margin: 0; width: 100%; padding: 5mm 8mm; }
+            .controls, .btn-clear, .photo-placeholder { display: none !important; }
+            input { border-bottom: none !important; }
+            .signature-pad { border: none; background: transparent; }
         }
     </style>
 </head>
@@ -214,30 +174,25 @@
 
 <div class="controls">
     <button class="btn btn-print" onclick="window.print()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        Tlačiť Protokol
+        Tlačiť / Uložiť PDF
     </button>
     <label class="btn btn-photo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         Pridať Foto 1
-        <input type="file" id="fileInput1" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')">
+        <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')">
     </label>
     <label class="btn btn-photo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         Pridať Foto 2
-        <input type="file" id="fileInput2" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')">
+        <input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')">
     </label>
 </div>
 
 <div class="paper">
-    <div class="watermark">SPEKTRA INSTALL</div>
-
     <header>
         <div class="logo-container"><p class="logo-text">Vaillant</p></div>
         <div class="title-block">
             <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
             <div class="subtitle">Tepelné čerpadlo / Systémové riešenie</div>
-            <div class="protokol-cislo">Číslo protokolu: <input type="text" id="protoCislo" style="width: 120px; font-weight: bold; border-bottom: 1px solid #333;"></div>
+            <div class="protokol-cislo">Číslo protokolu: <input type="text" id="protoCislo" style="width: 100px; font-weight: bold;"></div>
         </div>
     </header>
 
@@ -246,14 +201,14 @@
             <tr>
                 <th style="vertical-align: top;">Zákazník / Miesto inštalácie</th>
                 <td>
-                    Meno: <input type="text" id="zakaznikMeno"><br>
-                    Adresa: <input type="text" id="zakaznikAdresa">
+                    Meno: <input type="text"><br>
+                    Adresa: <input type="text">
                 </td>
             </tr>
             <tr>
                 <th>Autorizovaný servis (VSP)</th>
-                <td style="font-size: 10px;">
-                    <strong>SPEKTRA INSTALL</strong> | Hollého 210, 015 01 Rajec<br>
+                <td style="font-size: 9px;">
+                    <strong>SPEKTRA INSTALL s.r.o.</strong> | Rajecká Lesná 98, 013 15<br>
                     IČO: 53690036 | DIČ: 2121459450 | Technik: <strong>Pavol Pastorek</strong>
                 </td>
             </tr>
@@ -264,7 +219,7 @@
     <table>
         <tr>
             <th>Vonkajšia jednotka</th>
-            <td style="width: 35%;">Model: <input type="text"></td>
+            <td>Model: <input type="text"></td>
             <td>Sériové č.: <input type="text"></td>
         </tr>
         <tr>
@@ -296,24 +251,24 @@
     <h2>3. SOFTVÉROVÁ KONFIGURÁCIA</h2>
     <table>
         <tr>
-            <td style="width: 50%;">Vykurovacia krivka: <input type="text" style="width: 60px;"></td>
-            <td>Bivalentný bod: <input type="text" style="width: 60px;"> °C</td>
+            <td style="width: 50%;">Vykurovacia krivka: <input type="text" style="width: 50px;"></td>
+            <td>Bivalentný bod: <input type="text" style="width: 50px;"> °C</td>
         </tr>
         <tr>
-            <td>Max. teplota výstupu: <input type="text" style="width: 60px;"> °C</td>
-            <td>Doplnkový ohrev: <input type="text" style="width: 60px;"> kW</td>
+            <td>Max. teplota výstupu: <input type="text" style="width: 50px;"> °C</td>
+            <td>Doplnkový ohrev: <input type="text" style="width: 50px;"> kW</td>
         </tr>
     </table>
 
     <h2>4. FOTODOKUMENTÁCIA</h2>
     <div class="photo-grid">
         <div class="photo-container">
-            <span id="photoPlaceholder1" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 10px;">[ Foto 1 ]</span>
-            <img id="photoPreview1" class="photo-preview" alt="Foto 1">
+            <span id="photoPlaceholder1" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 9px;">[ Foto 1 ]</span>
+            <img id="photoPreview1" class="photo-preview">
         </div>
         <div class="photo-container">
-            <span id="photoPlaceholder2" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 10px;">[ Foto 2 ]</span>
-            <img id="photoPreview2" class="photo-preview" alt="Foto 2">
+            <span id="photoPlaceholder2" class="photo-placeholder" style="color: #aaa; font-style: italic; font-size: 9px;">[ Foto 2 ]</span>
+            <img id="photoPreview2" class="photo-preview">
         </div>
     </div>
 
@@ -325,45 +280,97 @@
     </div>
 
     <div class="footer-sig">
-        <div class="sig-box">Podpis a pečiatka technika</div>
-        <div class="sig-box">Podpis zákazníka</div>
+        <div class="sig-column">
+            <div class="stamp-area">
+                <!-- Napevno vložený obrázok pečiatky -->
+                <img src="Razitko a podpis.jpg" id="stampImg" alt="Pečiatka a podpis technika" onerror="this.style.display='none'">
+            </div>
+            <div class="sig-label">Podpis a pečiatka technika</div>
+        </div>
+        <div class="sig-column">
+            <canvas id="sigPad" class="signature-pad"></canvas>
+            <button class="btn-clear" onclick="clearSig()">Vymazať podpis</button>
+            <div class="sig-label">Podpis zákazníka (prstom/myšou)</div>
+        </div>
     </div>
     
     <div style="text-align: center; margin-top: 15px; font-size: 9px; color: #999; border-top: 1px dashed #eee; padding-top: 3px; display: flex; justify-content: space-around;">
-        <span>Dátum: <input type="text" id="datumInput" style="width: 80px; border:none; background:none; font-weight: bold;"></span>
+        <span>Dátum: <input type="text" id="datumInput" style="width: 70px; border:none; background:none; font-weight: bold;"></span>
         <span>| SPEKTRA INSTALL, Rajec</span>
     </div>
 </div>
 
 <script>
-    // Automatické generovanie čísla a dátumu
     window.onload = function() {
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
-        
-        // Nastavenie dátumu
-        const dateInput = document.getElementById('datumInput');
-        if (dateInput) dateInput.value = `${dd}.${mm}.${yyyy}`;
-        
-        // Generovanie čísla protokolu (formát YYYYMMDD-01)
-        const protoInput = document.getElementById('protoCislo');
-        if (protoInput && !protoInput.value) {
-            protoInput.value = `${yyyy}${mm}${dd}-01`;
-        }
+        document.getElementById('datumInput').value = `${dd}.${mm}.${yyyy}`;
+        document.getElementById('protoCislo').value = `${yyyy}${mm}${dd}-01`;
+        initSignature();
     };
 
     function previewImage(event, previewId, placeholderId) {
         const reader = new FileReader();
         reader.onload = function() {
             const output = document.getElementById(previewId);
-            const placeholder = document.getElementById(placeholderId);
+            document.getElementById(placeholderId).style.display = 'none';
             output.src = reader.result;
             output.style.display = 'block';
-            placeholder.style.display = 'none';
         }
         if(event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
+    }
+
+    let canvas, ctx, drawing = false;
+
+    function initSignature() {
+        canvas = document.getElementById('sigPad');
+        ctx = canvas.getContext('2d');
+        
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        ctx.scale(ratio, ratio);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#00008B'; // Tmavomodrá pre podpis zákazníka
+
+        const start = (e) => {
+            drawing = true;
+            ctx.beginPath();
+            const pos = getPos(e);
+            ctx.moveTo(pos.x, pos.y);
+        };
+        const draw = (e) => {
+            if (!drawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        };
+        const stop = () => { drawing = false; };
+
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', stop);
+        canvas.addEventListener('touchstart', start);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stop);
+    }
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    function clearSig() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 </script>
 
