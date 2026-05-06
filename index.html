@@ -237,7 +237,7 @@
         <div class="title-block">
             <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
             <div class="subtitle">Tepelné čerpadlo / Systémové riešenie</div>
-            <div class="protokol-cislo">Číslo protokolu: <input type="text" style="width: 100px; font-weight: bold; border-bottom: 1px solid #333;"></div>
+            <div class="protokol-cislo">Číslo protokolu: <input type="text" id="protoCislo" style="width: 120px; font-weight: bold; border-bottom: 1px solid #333;"></div>
         </div>
     </header>
 
@@ -246,8 +246,8 @@
             <tr>
                 <th style="vertical-align: top;">Zákazník / Miesto inštalácie</th>
                 <td>
-                    Meno: <input type="text"><br>
-                    Adresa: <input type="text">
+                    Meno: <input type="text" id="zakaznikMeno"><br>
+                    Adresa: <input type="text" id="zakaznikAdresa">
                 </td>
             </tr>
             <tr>
@@ -330,12 +330,30 @@
     </div>
     
     <div style="text-align: center; margin-top: 15px; font-size: 9px; color: #999; border-top: 1px dashed #eee; padding-top: 3px; display: flex; justify-content: space-around;">
-        <span>Dátum: <input type="text" style="width: 80px; border:none; background:none; font-weight: bold;"></span>
+        <span>Dátum: <input type="text" id="datumInput" style="width: 80px; border:none; background:none; font-weight: bold;"></span>
         <span>| SPEKTRA INSTALL, Rajec</span>
     </div>
 </div>
 
 <script>
+    // Automatické generovanie čísla a dátumu
+    window.onload = function() {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        
+        // Nastavenie dátumu
+        const dateInput = document.getElementById('datumInput');
+        if (dateInput) dateInput.value = `${dd}.${mm}.${yyyy}`;
+        
+        // Generovanie čísla protokolu (formát YYYYMMDD-01)
+        const protoInput = document.getElementById('protoCislo');
+        if (protoInput && !protoInput.value) {
+            protoInput.value = `${yyyy}${mm}${dd}-01`;
+        }
+    };
+
     function previewImage(event, previewId, placeholderId) {
         const reader = new FileReader();
         reader.onload = function() {
