@@ -7,10 +7,9 @@
     <!-- Firebase Libraries -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Konfigurácia vspspektra
         const firebaseConfig = {
             apiKey: "AIzaSyCwcQRH3805_Fif-a451ER-0VxFsZh2l8s",
             authDomain: "vspspektra.firebaseapp.com",
@@ -35,37 +34,92 @@
             setTimeout(() => { box.style.display = 'none'; }, 5000);
         };
 
-        // Funkcia pre prihlásenie s automatickým opakovaním (Retry mechanism)
-        const initAuth = async (retryCount = 0) => {
-            const maxRetries = 5;
-            const delays = [1000, 2000, 4000, 8000, 16000];
-            
+        const initAuth = async () => {
             try {
                 await signInAnonymously(auth);
                 console.log("Firebase pripojený.");
-            } catch (error) {
-                console.error(`Auth error (pokus ${retryCount + 1}):`, error);
-                
-                if (retryCount < maxRetries) {
-                    const delay = delays[retryCount];
-                    console.log(`Zlyhanie siete. Opakujem pokus o ${delay/1000}s...`);
-                    setTimeout(() => initAuth(retryCount + 1), delay);
-                } else {
-                    window.showMessage("Chyba pripojenia: Skontrolujte internet alebo vypnite AdBlock.", "error");
+                // Po prihlásení vygenerujeme prvé číslo, ak je pole prázdne
+                if (!document.getElementById('protoCislo').value) {
+                    generateNextNumber();
                 }
-            }
+            } catch (error) { console.error("Auth error:", error); }
         };
         initAuth();
 
-        window.saveToArchive = async function() {
-            if (!auth.currentUser) { 
-                window.showMessage("Chyba: Databáza nie je pripojená. Skúste obnoviť stránku.", 'error'); 
-                return; 
-            }
+        // Funkcia na generovanie nasledujúceho čísla na základe dnešného dátumu a archívu
+        window.generateNextNumber = async function() {
+            const today = new Date();
+            const datePrefix = today.getFullYear() + 
+                               String(today.getMonth() + 1).padStart(2, '0') + 
+                               String(today.getDate()).padStart(2, '0');
             
+            let nextSequence = 1;
+
+            try {
+                // Načítame všetky protokoly (Rule 2: filter v pamäti)
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
+                const todaysProtocols = [];
+                
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.protoCislo && data.protoCislo.startsWith(datePrefix)) {
+                        todaysProtocols.push(data.protoCislo);
+                    }
+                });
+
+                if (todaysProtocols.length > 0) {
+                    // Nájdeme najvyššie číslo v dnešnom dni
+                    const sequences = todaysProtocols.map(num => {
+                        const parts = num.split('-');
+                        return parts.length > 1 ? parseInt(parts[1]) : 0;
+                    });
+                    nextSequence = Math.max(...sequences) + 1;
+                }
+            } catch (e) {
+                console.error("Chyba pri hľadaní čísla, použijem 01:", e);
+            }
+
+            const finalNumber = `${datePrefix}-${String(nextSequence).padStart(2, '0')}`;
+            document.getElementById('protoCislo').value = finalNumber;
+        };
+
+        // Funkcia pre nový dokument
+        window.createNewProtocol = async function() {
+            if (!confirm("Naozaj chcete vytvoriť nový protokol? Neuložené zmeny v aktuálnom budú stratené.")) return;
+            
+            // Vymazanie polí
+            const inputs = document.querySelectorAll('input[type="text"], textarea');
+            inputs.forEach(i => { if(i.id !== 'datumInput') i.value = ''; });
+            
+            // Reset selectov na predvolené
+            document.getElementById('typZariadenia').value = 'tc';
+            document.getElementById('magFilter').value = 'Áno';
+            
+            // Vymazanie fotiek
+            document.getElementById('photoPreview1').style.display = 'none';
+            document.getElementById('photoPlaceholder1').style.display = 'block';
+            document.getElementById('photoPreview1').src = '';
+            document.getElementById('photoPreview2').style.display = 'none';
+            document.getElementById('photoPlaceholder2').style.display = 'block';
+            document.getElementById('photoPreview2').src = '';
+            
+            // Vymazanie podpisu
+            if (window.clearSig) window.clearSig();
+            
+            // Aktualizácia UI a dátumu
+            const today = new Date();
+            document.getElementById('datumInput').value = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
+            updateFormByDevice();
+            
+            // Vygenerovanie nového čísla
+            await generateNextNumber();
+            window.showMessage("Nový protokol pripravený.");
+        };
+
+        window.saveToArchive = async function() {
+            if (!auth.currentUser) { window.showMessage("Chyba: Databáza nie je pripojená.", 'error'); return; }
             const loader = document.getElementById('globalLoader');
             loader.style.display = 'flex';
-            
             try {
                 const canvas = document.getElementById('sigPad');
                 const protoCisloRaw = document.getElementById('protoCislo').value.trim();
@@ -77,21 +131,17 @@
                     return;
                 }
 
-                // Generovanie ID dokumentu podľa požiadavky: číslo_meno
                 const sanitizedName = zakaznikMenoRaw.replace(/[/\\?%*:|"<>\s]/g, '_');
                 const docId = `${protoCisloRaw}_${sanitizedName}`;
 
-                // Spracovanie modelov (výber zo zoznamu alebo manuálne)
-                const extModelVal = document.getElementById('extModel').value === "manual" ? document.getElementById('extModelManual').value : document.getElementById('extModel').value;
-                const intModelVal = document.getElementById('intModel').value === "manual" ? document.getElementById('intModelManual').value : document.getElementById('intModel').value;
-
                 const data = {
+                    typZariadenia: document.getElementById('typZariadenia').value,
                     protoCislo: protoCisloRaw,
                     zakaznikMeno: zakaznikMenoRaw,
                     zakaznikAdresa: document.getElementById('zakaznikAdresa').value,
-                    extModel: extModelVal,
+                    extModel: document.getElementById('extModel').value === "manual" ? document.getElementById('extModelManual').value : document.getElementById('extModel').value,
                     extSerial: document.getElementById('extSerial').value,
-                    intModel: intModelVal,
+                    intModel: document.getElementById('intModel').value === "manual" ? document.getElementById('intModelManual').value : document.getElementById('intModel').value,
                     intSerial: document.getElementById('intSerial').value,
                     tankType: document.getElementById('tankType').value,
                     tankVol: document.getElementById('tankVol').value,
@@ -100,6 +150,7 @@
                     hardness: document.getElementById('hardness').value,
                     ph: document.getElementById('ph').value,
                     magFilter: document.getElementById('magFilter').value,
+                    frostProtect: document.getElementById('frostProtect').value,
                     pPress: document.getElementById('pPress').value,
                     flowMin: document.getElementById('flowMin').value,
                     ePress: document.getElementById('ePress').value,
@@ -116,23 +167,19 @@
                 };
 
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'protocols', docId), data);
-                window.showMessage(`Protokol úspešne uložený: ${docId}`);
-            } catch (error) { 
-                window.showMessage("Chyba pri ukladaní: " + error.message, 'error'); 
-            } finally { 
-                loader.style.display = 'none'; 
-            }
+                window.showMessage(`Protokol uložený: ${docId}`);
+            } catch (error) { window.showMessage("Chyba: " + error.message, 'error'); }
+            finally { loader.style.display = 'none'; }
         };
 
         window.openArchive = async function() {
             const modal = document.getElementById('archiveModal');
+            modal.style.display = 'flex';
             const list = document.getElementById('archiveList');
             list.innerHTML = 'Načítavam...';
-            modal.style.display = 'flex';
             try {
                 const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
                 list.innerHTML = '';
-                if (querySnapshot.empty) { list.innerHTML = 'Archív je prázdny.'; return; }
                 querySnapshot.forEach((docSnap) => {
                     const item = docSnap.data();
                     const row = document.createElement('div');
@@ -140,7 +187,7 @@
                     row.innerHTML = `<div><strong>${item.protoCislo}</strong><br><small>${item.zakaznikMeno}</small></div><button class="btn-select" onclick="loadProtocolData('${docSnap.id}')">Otvoriť</button>`;
                     list.appendChild(row);
                 });
-            } catch (e) { list.innerHTML = 'Chyba pripojenia k archívu.'; }
+            } catch (e) { list.innerHTML = 'Chyba pripojenia.'; }
         };
 
         window.loadProtocolData = async function(docId) {
@@ -150,6 +197,10 @@
                 const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
                 const data = querySnapshot.docs.find(d => d.id === docId).data();
                 
+                document.getElementById('typZariadenia').value = data.typZariadenia || 'tc';
+                updateFormByDevice();
+                
+                // TU SA NAČÍTA PÔVODNÉ ČÍSLO Z ARCHÍVU (NEMENÍ SA)
                 document.getElementById('protoCislo').value = data.protoCislo || '';
                 document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
                 document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
@@ -162,10 +213,14 @@
                 document.getElementById('tankType').value = data.tankType || '';
                 document.getElementById('tankVol').value = data.tankVol || '';
                 document.getElementById('refType').value = data.refType || 'R290';
+                
+                updateFormByDevice();
+
                 document.getElementById('refAmbientTemp').value = data.refAmbientTemp || '';
                 document.getElementById('hardness').value = data.hardness || '8.0';
                 document.getElementById('ph').value = data.ph || '8.0';
                 document.getElementById('magFilter').value = data.magFilter || 'Áno';
+                document.getElementById('frostProtect').value = data.frostProtect || 'Bez (voda)';
                 document.getElementById('pPress').value = data.pPress || '1.2';
                 document.getElementById('flowMin').value = data.flowMin || '';
                 document.getElementById('ePress').value = data.ePress || '1.0';
@@ -177,7 +232,10 @@
                 document.getElementById('datumInput').value = data.datum || '';
 
                 if (data.photo1) { document.getElementById('photoPreview1').src = data.photo1; document.getElementById('photoPreview1').style.display = 'block'; document.getElementById('photoPlaceholder1').style.display = 'none'; }
+                else { document.getElementById('photoPreview1').style.display = 'none'; document.getElementById('photoPlaceholder1').style.display = 'block'; }
+                
                 if (data.photo2) { document.getElementById('photoPreview2').src = data.photo2; document.getElementById('photoPreview2').style.display = 'block'; document.getElementById('photoPlaceholder2').style.display = 'none'; }
+                else { document.getElementById('photoPreview2').style.display = 'none'; document.getElementById('photoPlaceholder2').style.display = 'block'; }
                 
                 if (data.signature) {
                     const img = new Image();
@@ -188,9 +246,10 @@
                         ctx.drawImage(img, 0, 0, canvas.width/(window.devicePixelRatio||1), canvas.height/(window.devicePixelRatio||1));
                     };
                     img.src = data.signature;
-                }
-                window.showMessage("Protokol načítaný.");
-            } catch (e) { window.showMessage("Chyba načítania dát.", 'error'); }
+                } else { window.clearSig(); }
+                
+                window.showMessage("Protokol načítaný z archívu.");
+            } catch (e) { window.showMessage("Chyba načítania.", 'error'); }
             finally { document.getElementById('globalLoader').style.display = 'none'; }
         };
 
@@ -199,44 +258,30 @@
             const manualInput = document.getElementById(manualId);
             let found = false;
             for (let i = 0; i < select.options.length; i++) {
-                if (select.options[i].value === value) {
-                    select.selectedIndex = i;
-                    found = true;
-                    break;
-                }
+                if (select.options[i].value === value) { select.selectedIndex = i; found = true; break; }
             }
-            if (!found && value) {
-                select.value = "manual";
-                manualInput.value = value;
-                manualInput.style.display = "block";
-            } else {
-                manualInput.style.display = "none";
-            }
+            if (!found && value) { select.value = "manual"; manualInput.value = value; manualInput.style.display = "block"; }
+            else { manualInput.style.display = "none"; }
         }
     </script>
 
     <style>
-        :root { --vaillant-teal: #00897B; --border-color: #bbbbbb; --bg-gray: #f9f9f9; }
+        :root { --vaillant-teal: #00897B; --border-color: #bbbbbb; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.2; color: #333; margin: 0; padding: 5px; background-color: #f0f2f5; }
         .paper { background: white; width: 210mm; min-height: 297mm; padding: 10mm 15mm; margin: 5px auto; box-shadow: 0 5px 25px rgba(0,0,0,0.1); position: relative; box-sizing: border-box; }
-        
         header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--vaillant-teal); padding-bottom: 8px; margin-bottom: 12px; }
-        .logo-text { color: var(--vaillant-teal); font-weight: 800; font-size: 28px; letter-spacing: -1px; margin: 0; }
+        .logo-text { color: var(--vaillant-teal); font-weight: 800; font-size: 28px; margin: 0; }
         h1 { font-size: 15px; margin: 0; color: var(--vaillant-teal); text-transform: uppercase; text-align: right; }
         h2 { font-size: 11px; background: var(--vaillant-teal); color: white; padding: 5px 12px; margin: 12px 0 6px 0; border-radius: 2px; text-transform: uppercase; }
-        
         table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
         table, th, td { border: 1px solid var(--border-color); }
         th, td { padding: 4px 10px; text-align: left; }
         th { background-color: white; width: 25%; font-weight: 600; color: #555; }
-        
-        input[type="text"], select, textarea { width: 100%; border: none; border-bottom: 1px dashed #ccc; font-family: inherit; font-size: inherit; background: transparent; padding: 1px 0; }
+        input[type="text"], select, textarea { width: 100%; border: none; border-bottom: 1px dashed #ccc; font-family: inherit; font-size: inherit; background: transparent; }
         input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
-        
         .photo-grid { display: flex; gap: 10px; }
         .photo-container { flex: 1; border: 1px dashed #ccc; height: 100px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 4px; overflow: hidden; }
         .photo-preview { max-width: 100%; max-height: 100%; display: none; }
-        
         .footer-sig { margin-top: 20px; display: flex; justify-content: space-between; }
         .sig-column { width: 48%; text-align: center; }
         .sig-label { font-size: 9px; color: #666; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
@@ -244,18 +289,16 @@
         
         .controls { position: fixed; bottom: 25px; right: 25px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
         .btn { padding: 8px 16px; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .btn-new { background: #FF9800; } /* Oranžová pre Nový */
         .btn-print { background: var(--vaillant-teal); }
         .btn-archive { background: #1976D2; }
         .btn-save { background: #2E7D32; }
         .btn-photo { background: #444; }
         
-        #archiveModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
-        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 400px; max-height: 80vh; overflow-y: auto; }
-        .archive-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
-        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        
+        #messageBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         #globalLoader { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7); display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal); }
-        #messageBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; }
+        .archive-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         
         @media print {
             .controls, .btn-clear, #archiveModal, #globalLoader, #messageBox { display: none !important; }
@@ -267,10 +310,11 @@
 </head>
 <body>
 
-<div id="globalLoader">Spracovávam...</div>
+<div id="globalLoader">Spracovávam údaje...</div>
 <div id="messageBox"></div>
 
 <div class="controls">
+    <button class="btn btn-new" onclick="createNewProtocol()">+ Nový protokol</button>
     <button class="btn btn-save" onclick="saveToArchive()">Uložiť do archívu</button>
     <button class="btn btn-archive" onclick="openArchive()">Otvoriť archív</button>
     <button class="btn btn-print" onclick="window.print()">Tlačiť do PDF</button>
@@ -278,11 +322,10 @@
     <label class="btn btn-photo">Foto 2<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')"></label>
 </div>
 
-<div id="archiveModal" onclick="this.style.display='none'">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <h3 style="margin-top:0; color:var(--vaillant-teal);">Archív protokolov</h3>
+<div id="archiveModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000;" onclick="this.style.display='none'">
+    <div class="modal-content" style="background: white; padding: 25px; border-radius: 8px; width: 450px; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <h3 style="margin-top:0; color:var(--vaillant-teal);">Archív uložených protokolov</h3>
         <div id="archiveList"></div>
-        <button class="btn" style="background:#555; width:100%; margin-top:15px;" onclick="document.getElementById('archiveModal').style.display='none'">Zavrieť</button>
     </div>
 </div>
 
@@ -291,8 +334,15 @@
         <div><p class="logo-text">Vaillant</p></div>
         <div>
             <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
-            <div style="font-size: 10px; font-weight: bold; text-align: right; margin-top: 2px; color: #666;">Tepelné čerpadlo / Systémové riešenie</div>
-            <div style="font-size: 10px; margin-top: 5px; text-align: right;">Číslo protokolu: <input type="text" id="protoCislo" style="width: 100px; font-weight: bold; text-align: right;"></div>
+            <div style="font-size: 10px; margin-top: 5px; text-align: right;">
+                Typ: <select id="typZariadenia" onchange="updateFormByDevice()" style="width: 150px; font-weight: bold; border-bottom: 1px solid var(--vaillant-teal);">
+                    <option value="tc">Tepelné čerpadlo</option>
+                    <option value="kotol">Plynový kotol</option>
+                    <option value="elektro">Elektrokotol</option>
+                    <option value="pitna_voda">Modul na pitnú vodu</option>
+                </select>
+            </div>
+            <div style="font-size: 10px; margin-top: 5px; text-align: right;">Číslo protokolu: <input type="text" id="protoCislo" style="width: 100px; font-weight: bold; text-align: right;" placeholder="Načítavam..."></div>
         </div>
     </header>
 
@@ -314,62 +364,20 @@
     <h2>1. IDENTIFIKÁCIA ZARIADENIA</h2>
     <table>
         <tr>
-            <th>Vonkajšia jednotka</th>
+            <th id="labelModel">Model / Typ</th>
             <td>
-                Model: 
                 <select id="extModel" onchange="toggleManualInput(this, 'extModelManual')">
-                    <option value="">-- Vyberte model --</option>
-                    <optgroup label="aroTHERM plus (R290)">
-                        <option value="aroTHERM plus VWL 35/6 A 230V">aroTHERM plus VWL 35/6 A 230V</option>
-                        <option value="aroTHERM plus VWL 55/6 A 230V">aroTHERM plus VWL 55/6 A 230V</option>
-                        <option value="aroTHERM plus VWL 75/6 A 230V">aroTHERM plus VWL 75/6 A 230V</option>
-                        <option value="aroTHERM plus VWL 105/6 A 230V">aroTHERM plus VWL 105/6 A 230V</option>
-                        <option value="aroTHERM plus VWL 105/6 A 400V">aroTHERM plus VWL 105/6 A 400V</option>
-                        <option value="aroTHERM plus VWL 125/6 A 230V">aroTHERM plus VWL 125/6 A 230V</option>
-                        <option value="aroTHERM plus VWL 125/6 A 400V">aroTHERM plus VWL 125/6 A 400V</option>
-                    </optgroup>
-                    <optgroup label="aroTHERM Split plus (R32)">
-                        <option value="aroTHERM Split plus VWL 55/8.2 AS 230V">aroTHERM Split plus VWL 55/8.2 AS 230V</option>
-                        <option value="aroTHERM Split plus VWL 75/8.2 AS 230V">aroTHERM Split plus VWL 75/8.2 AS 230V</option>
-                        <option value="aroTHERM Split plus VWL 105/8.2 AS 400V">aroTHERM Split plus VWL 105/8.2 AS 400V</option>
-                        <option value="aroTHERM Split plus VWL 125/8.2 AS 400V">aroTHERM Split plus VWL 125/8.2 AS 400V</option>
-                    </optgroup>
-                    <optgroup label="aroTHERM Split (R410A)">
-                        <option value="aroTHERM Split VWL 35/5 AS 230V">aroTHERM Split VWL 35/5 AS 230V</option>
-                        <option value="aroTHERM Split VWL 55/5 AS 230V">aroTHERM Split VWL 55/5 AS 230V</option>
-                        <option value="aroTHERM Split VWL 75/5 AS 230V">aroTHERM Split VWL 75/5 AS 230V</option>
-                        <option value="aroTHERM Split VWL 105/5 AS 400V">aroTHERM Split VWL 105/5 AS 400V</option>
-                        <option value="aroTHERM Split VWL 125/5 AS 400V">aroTHERM Split VWL 125/5 AS 400V</option>
-                    </optgroup>
-                    <option value="manual">-- Manuálne zadať --</option>
                 </select>
-                <input type="text" id="extModelManual" placeholder="Zadajte model manuálne" style="display:none; margin-top:5px;">
+                <input type="text" id="extModelManual" placeholder="Manuálny názov" style="display:none; margin-top:5px;">
             </td>
             <td>Sériové č.: <input type="text" id="extSerial" style="width: 180px;"></td>
         </tr>
-        <tr>
+        <tr id="rowVnutorna">
             <th>Vnútorná jednotka</th>
             <td>
-                Model: 
                 <select id="intModel" onchange="toggleManualInput(this, 'intModelManual')">
-                    <option value="">-- Vyberte model --</option>
-                    <optgroup label="uniTOWER plus (pre aroTHERM plus)">
-                        <option value="uniTOWER plus VIH QW 190/6 E">uniTOWER plus VIH QW 190/6 E</option>
-                        <option value="Závesný hydraulický modul VWZ MEH 97/6">Závesný hydraulický modul VWZ MEH 97/6</option>
-                    </optgroup>
-                    <optgroup label="uniTOWER Split plus (pre aroTHERM Split plus)">
-                        <option value="uniTOWER Split plus VWL 58/8.2 IS">uniTOWER Split plus VWL 58/8.2 IS</option>
-                        <option value="uniTOWER Split plus VWL 78/8.2 IS">uniTOWER Split plus VWL 78/8.2 IS</option>
-                        <option value="uniTOWER Split plus VWL 128/8.2 IS">uniTOWER Split plus VWL 128/8.2 IS</option>
-                    </optgroup>
-                    <optgroup label="uniTOWER Split (pre aroTHERM Split)">
-                        <option value="uniTOWER Split VWL 58/5 IS">uniTOWER Split VWL 58/5 IS</option>
-                        <option value="uniTOWER Split VWL 78/5 IS">uniTOWER Split VWL 78/5 IS</option>
-                        <option value="uniTOWER Split VWL 128/5 IS">uniTOWER Split VWL 128/5 IS</option>
-                    </optgroup>
-                    <option value="manual">-- Manuálne zadať --</option>
                 </select>
-                <input type="text" id="intModelManual" placeholder="Zadajte model manuálne" style="display:none; margin-top:5px;">
+                <input type="text" id="intModelManual" placeholder="Manuálny názov" style="display:none; margin-top:5px;">
             </td>
             <td>Sériové č.: <input type="text" id="intSerial" style="width: 180px;"></td>
         </tr>
@@ -380,49 +388,60 @@
         </tr>
     </table>
 
-    <h2>2. CHLADIVOVÝ OKRUH</h2>
-    <table>
-        <tr>
-            <th>Typ chladiva:</th>
-            <td>
-                <select id="refType">
-                    <option value="R290">R290 (Monoblok)</option>
-                    <option value="R32">R32 (Split)</option>
-                    <option value="R410A">R410A (Split)</option>
-                </select>
-            </td>
-            <th>Teplota prostredia:</th>
-            <td><input type="text" id="refAmbientTemp" style="width: 40px;"> °C</td>
-        </tr>
-    </table>
+    <div id="sectionChladivo">
+        <h2>2. CHLADIVOVÝ OKRUH</h2>
+        <table>
+            <tr>
+                <th>Typ chladiva:</th>
+                <td>
+                    <select id="refType" onchange="updateFormByDevice()">
+                        <option value="R290">R290 (Monoblok)</option>
+                        <option value="R32">R32 (Split)</option>
+                        <option value="R410A">R410A (Split)</option>
+                    </select>
+                </td>
+                <th>Teplota prostredia:</th>
+                <td><input type="text" id="refAmbientTemp" style="width: 40px;"> °C</td>
+            </tr>
+        </table>
+    </div>
 
     <h2>3. KVALITA VODY A HYDRAULIKA (VDI 2035)</h2>
     <table>
         <tr>
             <td>Tvrdosť: <input type="text" id="hardness" style="width: 40px;" value="8.0"> °dH</td>
             <td>pH vody: <input type="text" id="ph" style="width: 40px;" value="8.0"></td>
-            <td>Magnetický filter: <input type="text" id="magFilter" style="width: 50px;" value="Áno"></td>
+            <td><span id="labelMagFilter">Magnetický filter</span>: <input type="text" id="magFilter" style="width: 50px;" value="Áno"></td>
         </tr>
         <tr>
             <td>Tlak syst.: <input type="text" id="pPress" style="width: 40px;" value="1.2"> bar</td>
             <td>Prietok min.: <input type="text" id="flowMin" style="width: 40px;"> l/min</td>
             <td>Expanzia: <input type="text" id="ePress" style="width: 40px;" value="1.0"> bar</td>
         </tr>
+        <tr id="rowFrostProtection" style="display:none;">
+            <th>Ochrana proti zamrznutiu:</th>
+            <td colspan="2">
+                <select id="frostProtect">
+                    <option value="Bez (voda)">Bez (voda)</option>
+                    <option value="S výmenníkom a glykolom">S výmenníkom a glykolom</option>
+                </select>
+            </td>
+        </tr>
     </table>
 
     <h2>4. SOFTVÉROVÁ KONFIGURÁCIA A MERANIA</h2>
     <table>
         <tr>
-            <th>Vykurovacia krivka</th>
+            <th><span id="labelParam1">Vykurovacia krivka</span></th>
             <td><input type="text" id="curve" style="width: 60px;" value="0.5"></td>
-            <th>Bivalentný bod</th>
-            <td><input type="text" id="bival" style="width: 60px;" value="-7"> °C</td>
+            <th><span id="labelParam2">Bivalentný bod</span></th>
+            <td><input type="text" id="bival" style="width: 60px;" value="-7"> <span id="unitParam2">°C</span></td>
         </tr>
         <tr>
-            <th>Max. teplota výstupu</th>
+            <th><span id="labelParam3">Max. teplota výstupu</span></th>
             <td><input type="text" id="maxOut" style="width: 60px;" value="45"> °C</td>
-            <th>Doplnkový ohrev</th>
-            <td><input type="text" id="limit" style="width: 60px;"> kW</td>
+            <th><span id="labelParam4">Doplnkový ohrev</span></th>
+            <td><input type="text" id="limit" style="width: 60px;"> <span id="unitParam4">kW</span></td>
         </tr>
     </table>
 
@@ -452,7 +471,7 @@
         </div>
         <div class="sig-column">
             <canvas id="sigPad" class="signature-pad"></canvas>
-            <button style="background: #d32f2f; color: white; border: none; font-size: 8px; cursor: pointer; border-radius: 2px; margin-top: 2px;" onclick="clearSig()">Vymazať podpis</button>
+            <button style="background: #d32f2f; color: white; border: none; font-size: 8px; cursor: pointer; border-radius: 2px; margin-top: 2px;" onclick="clearSig()">Vymazať</button>
             <div class="sig-label">Podpis zákazníka</div>
         </div>
     </div>
@@ -464,23 +483,164 @@
 </div>
 
 <script>
+    const modelyTC_ext = `
+        <option value="">-- Vyberte model TC --</option>
+        <optgroup label="aroTHERM plus (R290)">
+            <option value="aroTHERM plus VWL 35/6 A">aroTHERM plus VWL 35/6 A</option>
+            <option value="aroTHERM plus VWL 55/6 A">aroTHERM plus VWL 55/6 A</option>
+            <option value="aroTHERM plus VWL 75/6 A">aroTHERM plus VWL 75/6 A</option>
+            <option value="aroTHERM plus VWL 105/6 A">aroTHERM plus VWL 105/6 A</option>
+            <option value="aroTHERM plus VWL 125/6 A">aroTHERM plus VWL 125/6 A</option>
+        </optgroup>
+        <optgroup label="aroTHERM Split plus (R32)">
+            <option value="aroTHERM Split plus VWL 55/8.2 AS">aroTHERM Split plus VWL 55/8.2 AS</option>
+            <option value="aroTHERM Split plus VWL 75/8.2 AS">aroTHERM Split plus VWL 75/8.2 AS</option>
+            <option value="aroTHERM Split plus VWL 125/8.2 AS">aroTHERM Split plus VWL 125/8.2 AS</option>
+        </optgroup>
+        <option value="manual">-- Manuálne zadať --</option>
+    `;
+
+    const modelyTC_int = `
+        <option value="">-- Vyberte vnútornú j. --</option>
+        <option value="uniTOWER plus VIH QW 190/6 E">uniTOWER plus VIH QW 190/6 E</option>
+        <option value="uniTOWER Split plus VWL IS">uniTOWER Split plus IS</option>
+        <option value="VWZ MEH 97/6 (Hydraulický modul)">VWZ MEH 97/6</option>
+        <option value="manual">-- Manuálne zadať --</option>
+    `;
+
+    const modelyKotly = `
+        <option value="">-- Vyberte model kotla --</option>
+        <optgroup label="ecoTEC exclusive">
+            <option value="ecoTEC exclusive VU 20/25 CS/1-7">ecoTEC exclusive VU 20/25 CS/1-7</option>
+            <option value="ecoTEC exclusive VU 25/32 CS/1-7">ecoTEC exclusive VU 25/32 CS/1-7</option>
+        </optgroup>
+        <optgroup label="ecoTEC plus (IoniDetect)">
+            <option value="ecoTEC plus VU 10/15 CS/1-5">ecoTEC plus VU 10/15 CS/1-5</option>
+            <option value="ecoTEC plus VU 20/25 CS/1-5">ecoTEC plus VU 20/25 CS/1-5</option>
+            <option value="ecoTEC plus VU 25/32 CS/1-5">ecoTEC plus VU 25/32 CS/1-5</option>
+            <option value="ecoTEC plus VUW 20/26 CS/1-5">ecoTEC plus VUW 20/26 CS/1-5</option>
+            <option value="ecoTEC plus VUW 25/32 CS/1-5">ecoTEC plus VUW 25/32 CS/1-5</option>
+        </optgroup>
+        <optgroup label="ecoTEC pro">
+            <option value="ecoTEC pro VUW 236/5-3">ecoTEC pro VUW 236/5-3</option>
+            <option value="ecoTEC pro VUW 286/5-3">ecoTEC pro VUW 286/5-3</option>
+        </optgroup>
+        <optgroup label="ecoCOMPACT / aurora">
+            <option value="ecoCOMPACT VSC 206/4-5 150">ecoCOMPACT VSC 206/4-5 150</option>
+            <option value="auroCOMPACT VSC 206/4-5 190">auroCOMPACT VSC 206/4-5 190</option>
+        </optgroup>
+        <option value="manual">-- Manuálne zadať --</option>
+    `;
+
+    const modelyElektro = `
+        <option value="">-- Vyberte eloBLOCK --</option>
+        <option value="eloBLOCK VE 6/14">eloBLOCK VE 6/14</option>
+        <option value="eloBLOCK VE 9/14">eloBLOCK VE 9/14</option>
+        <option value="eloBLOCK VE 12/14">eloBLOCK VE 12/14</option>
+        <option value="eloBLOCK VE 14/14">eloBLOCK VE 14/14</option>
+        <option value="eloBLOCK VE 18/14">eloBLOCK VE 18/14</option>
+        <option value="eloBLOCK VE 21/14">eloBLOCK VE 21/14</option>
+        <option value="eloBLOCK VE 24/14">eloBLOCK VE 24/14</option>
+        <option value="eloBLOCK VE 28/14">eloBLOCK VE 28/14</option>
+        <option value="manual">-- Manuálne zadať --</option>
+    `;
+
+    const modelyPitnaVoda = `
+        <option value="">-- Vyberte aguaFLOW --</option>
+        <option value="aguaFLOW VPM 20/25 W">aguaFLOW VPM 20/25 W</option>
+        <option value="aguaFLOW VPM 30/35 W">aguaFLOW VPM 30/35 W</option>
+        <option value="aguaFLOW VPM 40/45 W">aguaFLOW VPM 40/45 W</option>
+        <option value="manual">-- Manuálne zadať --</option>
+    `;
+
+    window.updateFormByDevice = function() {
+        const typ = document.getElementById('typZariadenia').value;
+        const refType = document.getElementById('refType').value;
+        const sectionChladivo = document.getElementById('sectionChladivo');
+        const rowVnutorna = document.getElementById('rowVnutorna');
+        const rowFrostProtection = document.getElementById('rowFrostProtection');
+        const extSelect = document.getElementById('extModel');
+        const intSelect = document.getElementById('intModel');
+        
+        const labelModel = document.getElementById('labelModel');
+        const labelParam1 = document.getElementById('labelParam1');
+        const labelParam2 = document.getElementById('labelParam2');
+        const labelParam3 = document.getElementById('labelParam3');
+        const labelParam4 = document.getElementById('labelParam4');
+        const unitParam2 = document.getElementById('unitParam2');
+        const unitParam4 = document.getElementById('unitParam4');
+        
+        const labelMagFilter = document.getElementById('labelMagFilter');
+        const pPressInput = document.getElementById('pPress');
+        const ePressInput = document.getElementById('ePress');
+
+        // Reset display
+        sectionChladivo.style.display = "none";
+        rowVnutorna.style.display = "none";
+        rowFrostProtection.style.display = "none";
+        labelMagFilter.textContent = "Magnetický filter";
+
+        if (typ === 'tc') {
+            sectionChladivo.style.display = "block";
+            rowVnutorna.style.display = "table-row";
+            labelModel.textContent = "Vonkajšia jednotka";
+            labelParam1.textContent = "Vykurovacia krivka";
+            labelParam2.textContent = "Bivalentný bod";
+            labelParam3.textContent = "Max. teplota výstupu";
+            labelParam4.textContent = "Doplnkový ohrev";
+            unitParam2.textContent = "°C";
+            unitParam4.textContent = "kW";
+            pPressInput.value = "1.2";
+            ePressInput.value = "1.0";
+            if (refType === 'R290') rowFrostProtection.style.display = "table-row";
+            extSelect.innerHTML = modelyTC_ext;
+            intSelect.innerHTML = modelyTC_int;
+        } else if (typ === 'kotol') {
+            labelModel.textContent = "Model kotla";
+            labelParam1.textContent = "Vykurovacia krivka";
+            labelParam2.textContent = "CO2 (min/max)";
+            labelParam3.textContent = "Max. teplota výstupu";
+            labelParam4.textContent = "Výkon vykurovania";
+            unitParam2.textContent = "%";
+            unitParam4.textContent = "kW";
+            pPressInput.value = "1.2";
+            ePressInput.value = "1.0";
+            extSelect.innerHTML = modelyKotly;
+        } else if (typ === 'elektro') {
+            labelModel.textContent = "Model elektrokotla";
+            labelParam1.textContent = "Aktívny výkon";
+            labelParam2.textContent = "Teplota systému";
+            labelParam3.textContent = "Max. obmedzenie";
+            labelParam4.textContent = "HDO režim";
+            unitParam2.textContent = "°C";
+            unitParam4.textContent = "A/N";
+            pPressInput.value = "1.2";
+            ePressInput.value = "1.0";
+            extSelect.innerHTML = modelyElektro;
+        } else if (typ === 'pitna_voda') {
+            labelModel.textContent = "Modul pitnej vody";
+            labelParam1.textContent = "Nastavená teplota TV";
+            labelParam2.textContent = "Max. prietok";
+            labelParam3.textContent = "Hysterézia";
+            labelParam4.textContent = "Cirkulácia";
+            unitParam2.textContent = "l/min";
+            unitParam4.textContent = "Režim";
+            labelMagFilter.textContent = "Filter";
+            pPressInput.value = "3.5";
+            ePressInput.value = "4.0";
+            extSelect.innerHTML = modelyPitnaVoda;
+        }
+    };
+
     window.onload = function() {
         const today = new Date();
         document.getElementById('datumInput').value = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
-        if (!document.getElementById('protoCislo').value) {
-            document.getElementById('protoCislo').value = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`;
-        }
+        updateFormByDevice();
         initSignature();
     };
 
     function toggleManualInput(select, manualInputId) {
-        const manualInput = document.getElementById(manualInputId);
-        if (select.value === "manual") {
-            manualInput.style.display = "block";
-            manualInput.focus();
-        } else {
-            manualInput.style.display = "none";
-        }
+        document.getElementById(manualInputId).style.display = (select.value === "manual") ? "block" : "none";
     }
 
     window.previewImage = function(event, previewId, placeholderId) {
@@ -502,10 +662,13 @@
         canvas.height = canvas.offsetHeight * ratio;
         ctx.scale(ratio, ratio);
         ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#00008B';
-        const getP = (e) => ({ 
-            x: (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left, 
-            y: (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top 
-        });
+        const getP = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
+                y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+            };
+        };
         const start = (e) => { drawing = true; ctx.beginPath(); const p = getP(e); ctx.moveTo(p.x, p.y); };
         const move = (e) => { if(!drawing) return; e.preventDefault(); const p = getP(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
         canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', () => drawing=false);
