@@ -8,6 +8,8 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <!-- OCR štítkov zariadení priamo v prehliadači -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/tesseract.min.js"></script>
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyCwcQRH3805_Fif-a451ER-0VxFsZh2l8s",
@@ -412,6 +414,36 @@
         .btn-archive { background: #1976D2; }
         .btn-save { background: #2E7D32; }
         .btn-photo { background: #444; }
+        .btn-scan { background: #6A1B9A; }
+        .label-scan-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 7px 0; padding: 7px 10px; border: 1px solid #D1C4E9; background: #F7F2FB; border-radius: 4px; font-size: 10px; }
+        .label-scan-bar button { border: none; border-radius: 4px; background: #6A1B9A; color: white; font-weight: 700; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+        .label-scan-bar span { color: #555; }
+        .scan-modal { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 15px; box-sizing: border-box; }
+        .scan-dialog { width: min(720px, 96vw); max-height: 92vh; overflow-y: auto; background: white; border-radius: 10px; box-shadow: 0 14px 45px rgba(0,0,0,.28); padding: 18px; box-sizing: border-box; }
+        .scan-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .scan-dialog-header h3 { margin: 0; color: var(--vaillant-teal); font-size: 17px; }
+        .scan-close { border: none; background: #eee; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; }
+        .scan-layout { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(260px, 1.1fr); gap: 16px; }
+        .scan-preview-box { min-height: 220px; border: 1px dashed #bbb; background: #fafafa; display: flex; align-items: center; justify-content: center; border-radius: 6px; overflow: hidden; }
+        .scan-preview-box img { display: block; max-width: 100%; max-height: 360px; object-fit: contain; }
+        .scan-progress { margin-top: 8px; min-height: 18px; font-size: 11px; font-weight: 700; color: #5E356D; }
+        .scan-progress-track { height: 7px; background: #eee; border-radius: 999px; overflow: hidden; margin-top: 5px; }
+        .scan-progress-fill { height: 100%; width: 0%; background: #6A1B9A; transition: width .2s ease; }
+        .scan-field { margin-bottom: 9px; }
+        .scan-field label { display: block; font-size: 10px; font-weight: 700; color: #555; margin-bottom: 3px; }
+        .scan-field input, .scan-field select, .scan-field textarea { width: 100%; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background: white; padding: 7px 8px; font-size: 12px; }
+        .scan-field textarea { min-height: 88px; resize: vertical; font-family: Consolas, monospace; font-size: 10px; }
+        .scan-result-note { font-size: 10px; color: #666; margin: 4px 0 10px 0; }
+        .scan-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .scan-actions button { border: none; border-radius: 5px; padding: 8px 13px; cursor: pointer; font-weight: 700; }
+        .scan-apply { background: var(--vaillant-teal); color: white; }
+        .scan-again { background: #6A1B9A; color: white; }
+        .scan-cancel { background: #eee; color: #333; }
+        @media (max-width: 680px) {
+            .scan-layout { grid-template-columns: 1fr; }
+            .scan-preview-box { min-height: 170px; }
+            .label-scan-bar { align-items: stretch; flex-direction: column; }
+        }
         
         #messageBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         #globalLoader { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7); display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal); }
@@ -437,7 +469,7 @@
                 line-height: 1.12;
             }
 
-            .controls, .btn-clear, #archiveModal, #globalLoader, #messageBox,
+            .controls, .btn-clear, #archiveModal, #labelScanModal, .label-scan-bar, #globalLoader, #messageBox,
             .footer-sig button {
                 display: none !important;
             }
@@ -577,6 +609,8 @@
     <button class="btn btn-save" onclick="saveToArchive()">Uložiť do archívu</button>
     <button class="btn btn-archive" onclick="openArchive()">Otvoriť archív</button>
     <button class="btn btn-print" onclick="window.print()">Tlačiť do PDF</button>
+    <button class="btn btn-scan" type="button" onclick="openLabelCamera()">Odfotiť štítok</button>
+    <input id="labelScanInput" type="file" accept="image/*" capture="environment" style="display:none" onchange="handleLabelScan(event)">
     <label class="btn btn-photo">Foto 1<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')"></label>
     <label class="btn btn-photo">Foto 2<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')"></label>
 </div>
@@ -588,11 +622,81 @@
     </div>
 </div>
 
+<div id="labelScanModal" class="scan-modal" onclick="closeLabelScanModal(event)">
+    <div class="scan-dialog" onclick="event.stopPropagation()">
+        <div class="scan-dialog-header">
+            <h3>Rozpoznanie štítku zariadenia</h3>
+            <button class="scan-close" type="button" onclick="closeLabelScanModal()" aria-label="Zavrieť">×</button>
+        </div>
+        <div class="scan-layout">
+            <div>
+                <div class="scan-preview-box">
+                    <img id="labelScanPreview" alt="Fotografia štítku" style="display:none">
+                    <span id="labelScanPlaceholder" style="font-size:11px;color:#777;padding:20px;text-align:center;">Odfoťte celý štítok kolmo, zblízka a bez odlesku.</span>
+                </div>
+                <div id="labelScanProgress" class="scan-progress">Pripravené na snímanie.</div>
+                <div class="scan-progress-track"><div id="labelScanProgressFill" class="scan-progress-fill"></div></div>
+            </div>
+            <div>
+                <div class="scan-field">
+                    <label for="scanDeviceType">Typ zariadenia</label>
+                    <select id="scanDeviceType">
+                        <option value="tc">Tepelné čerpadlo</option>
+                        <option value="kotol">Plynový kotol</option>
+                        <option value="elektro">Elektrokotol</option>
+                        <option value="pitna_voda">Modul na pitnú vodu</option>
+                    </select>
+                </div>
+                <div class="scan-field">
+                    <label for="scanTarget">Kam vložiť údaje</label>
+                    <select id="scanTarget">
+                        <option value="auto">Automaticky podľa štítku</option>
+                        <option value="ext">Hlavné zariadenie / vonkajšia jednotka</option>
+                        <option value="int">Vnútorná jednotka</option>
+                    </select>
+                </div>
+                <div class="scan-field">
+                    <label for="scanDetectedModel">Rozpoznaný model / typ</label>
+                    <input type="text" id="scanDetectedModel" placeholder="napr. aroTHERM plus VWL 75/6 A">
+                </div>
+                <div class="scan-field">
+                    <label for="scanDetectedSerial">Výrobné číslo</label>
+                    <input type="text" id="scanDetectedSerial" placeholder="Sériové / výrobné číslo">
+                </div>
+                <div class="scan-field">
+                    <label for="scanDetectedRefrigerant">Chladivo</label>
+                    <select id="scanDetectedRefrigerant">
+                        <option value="">Nerozpoznané</option>
+                        <option value="R290">R290</option>
+                        <option value="R32">R32</option>
+                        <option value="R410A">R410A</option>
+                    </select>
+                </div>
+                <div id="scanConfidence" class="scan-result-note">Údaje po rozpoznaní skontrolujte podľa štítku.</div>
+                <details>
+                    <summary style="font-size:10px;cursor:pointer;color:#555;">Zobraziť rozpoznaný text</summary>
+                    <div class="scan-field" style="margin-top:7px;">
+                        <textarea id="scanRawText" readonly></textarea>
+                    </div>
+                </details>
+            </div>
+        </div>
+        <div class="scan-actions">
+            <button class="scan-cancel" type="button" onclick="closeLabelScanModal()">Zavrieť</button>
+            <button class="scan-again" type="button" onclick="openLabelCamera()">Odfotiť znova</button>
+            <button class="scan-apply" type="button" onclick="applyScannedLabelData(true)">Použiť údaje</button>
+        </div>
+    </div>
+</div>
+
 <div class="paper">
     <header>
         <div>
             <p class="logo-text">Vaillant</p>
-            <p style="font-size: 9px; color: var(--vaillant-teal); font-weight: bold; margin-top: -4px;">- systémové riešenia -</p>
+            <p style="font-size: 9px; color: var(--vaillant-teal); font-weight: bold; margin: -4px 0 3px 0;">- systémové riešenia -</p>
+            <div style="font-size: 9px; color: #666; white-space: nowrap;">
+                Dátum: <input type="text" id="datumInput" style="width: 78px; border: none; border-bottom: 1px dashed #bbb; background: transparent; font-weight: bold; color: #333;">
+            </div>
         </div>
         <div>
             <h1>PROTOKOL O UVEDENÍ DO PREVÁDZKY</h1>
@@ -624,6 +728,10 @@
     </table>
 
     <h2>1. IDENTIFIKÁCIA ZARIADENIA</h2>
+    <div class="label-scan-bar">
+        <button type="button" onclick="openLabelCamera()">Odfotiť štítok zariadenia</button>
+        <span>Foto sa rozpozná priamo v zariadení a doplní model, výrobné číslo a chladivo. Výsledok vždy skontrolujte.</span>
+    </div>
     <table>
         <tr>
             <th id="labelModel">Model / Typ</th>
@@ -740,9 +848,8 @@
         </div>
     </div>
     
-    <div style="text-align: center; margin-top: 20px; font-size: 8px; color: #999; border-top: 1px dashed #ddd; padding-top: 8px; display: flex; justify-content: space-around;">
-        <span>Dátum: <input type="text" id="datumInput" style="width: 80px; border:none; background:none; font-weight: bold;"></span>
-        <span>| SPEKTRA INSTALL s.r.o.</span>
+    <div style="text-align: center; margin-top: 20px; font-size: 8px; color: #999; border-top: 1px dashed #ddd; padding-top: 8px;">
+        <span>SPEKTRA INSTALL s.r.o.</span>
     </div>
 </div>
 
@@ -961,6 +1068,402 @@
             event.target.value = '';
         }
     };
+
+    // --- Automatické rozpoznanie výrobného štítku ---
+    let labelOcrWorkerPromise = null;
+    let lastScanSuggestedTarget = 'auto';
+
+    window.openLabelCamera = function() {
+        const input = document.getElementById('labelScanInput');
+        if (input) input.click();
+    };
+
+    window.closeLabelScanModal = function(event) {
+        if (event && event.target && event.target.id !== 'labelScanModal') return;
+        const modal = document.getElementById('labelScanModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    function setScanProgress(text, percent = 0) {
+        const label = document.getElementById('labelScanProgress');
+        const fill = document.getElementById('labelScanProgressFill');
+        if (label) label.textContent = text;
+        if (fill) fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    }
+
+    function normalizeComparable(value) {
+        return String(value || '')
+            .toUpperCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Z0-9]/g, '');
+    }
+
+    function cleanOcrText(value) {
+        return String(value || '')
+            .replace(/[|]/g, 'I')
+            .replace(/[“”„]/g, '"')
+            .replace(/[‐‑‒–—]/g, '-')
+            .replace(/\r/g, '')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
+    function canonicalizeModelCode(raw) {
+        let code = String(raw || '').toUpperCase().replace(/,/g, '.');
+        code = code.replace(/\s*\/\s*/g, '/').replace(/\s*\.\s*/g, '.').replace(/\s*-\s*/g, '-');
+        code = code.replace(/\s+/g, ' ').trim();
+        code = code.replace(/^V\s*W\s*[1I]\b/, 'VWL');
+        code = code.replace(/^V\s*W\s*L\b/, 'VWL');
+        code = code.replace(/^V\s*I\s*H\b/, 'VIH');
+        code = code.replace(/^V\s*W\s*Z\b/, 'VWZ');
+        code = code.replace(/^V\s*U\s*W\b/, 'VUW');
+        code = code.replace(/^V\s*U\b/, 'VU');
+        code = code.replace(/^V\s*S\s*C\b/, 'VSC');
+        code = code.replace(/^V\s*E\b/, 'VE');
+        code = code.replace(/^V\s*P\s*M\b/, 'VPM');
+        return code;
+    }
+
+    function extractModelCode(text) {
+        const source = cleanOcrText(text).toUpperCase().replace(/,/g, '.');
+        const patterns = [
+            /V\s*W\s*[L1I]\s*\d{2,3}\s*\/\s*\d(?:\s*[.]\s*\d)?\s*(?:AS|IS|A)\b/i,
+            /V\s*I\s*H\s*Q\s*W\s*\d{2,3}\s*\/\s*\d\s*[A-Z]?\b/i,
+            /V\s*W\s*Z\s*M\s*E\s*H\s*\d{2,3}\s*\/\s*\d\b/i,
+            /V\s*U\s*W?\s*\d{2,3}\s*\/\s*\d{1,2}(?:\s*C\s*S\s*\/\s*\d\s*-\s*\d|\s*\/\s*\d\s*-\s*\d|\s*-\s*\d)?/i,
+            /V\s*S\s*C\s*\d{3}\s*\/\s*\d\s*-\s*\d(?:\s*\d{3})?/i,
+            /V\s*E\s*\d{1,2}\s*\/\s*\d{2}\b/i,
+            /V\s*P\s*M\s*\d{2}\s*\/\s*\d{2}\s*W\b/i
+        ];
+        for (const pattern of patterns) {
+            const match = source.match(pattern);
+            if (match) return canonicalizeModelCode(match[0]);
+        }
+        return '';
+    }
+
+    function familyModelName(code, text) {
+        if (!code) return '';
+        const upper = cleanOcrText(text).toUpperCase();
+        const compactCode = canonicalizeModelCode(code);
+        if (compactCode.startsWith('VWL')) {
+            if (/\bIS\b/.test(compactCode) || upper.includes('UNITOWER')) {
+                return upper.includes('UNITOWER') ? `uniTOWER Split plus ${compactCode}` : compactCode;
+            }
+            if (upper.includes('SPLIT PLUS') || /\bAS\b/.test(compactCode)) return `aroTHERM Split plus ${compactCode}`;
+            return `aroTHERM plus ${compactCode}`;
+        }
+        if (compactCode.startsWith('VIH QW')) return `uniTOWER plus ${compactCode}`;
+        if (compactCode.startsWith('VWZ MEH')) return compactCode;
+        if (/^VU(W)?\b/.test(compactCode)) {
+            if (upper.includes('EXCLUSIVE')) return `ecoTEC exclusive ${compactCode}`;
+            if (upper.includes('PRO')) return `ecoTEC pro ${compactCode}`;
+            return `ecoTEC plus ${compactCode}`;
+        }
+        if (compactCode.startsWith('VSC')) {
+            return upper.includes('AURO') ? `auroCOMPACT ${compactCode}` : `ecoCOMPACT ${compactCode}`;
+        }
+        if (compactCode.startsWith('VE ')) return `eloBLOCK ${compactCode}`;
+        if (compactCode.startsWith('VPM')) return `aguaFLOW ${compactCode}`;
+        return compactCode;
+    }
+
+    function serialCandidate(value) {
+        let candidate = String(value || '').toUpperCase();
+        candidate = candidate.split(/\b(?:TYPE|TYP|MODEL|MODELL|ART(?:IKEL)?|ARTICLE|PRODUCT|PROD|EAN|QR|REFRIGERANT|KALTEMITTEL|VOLT|HZ|KW)\b/i)[0];
+        candidate = candidate.replace(/^[\s:#.=\-]+/, '').trim();
+        const chunks = candidate.match(/[A-Z0-9][A-Z0-9 .\/-]{5,45}/g);
+        if (!chunks || !chunks.length) return '';
+        let compact = chunks[0].replace(/[^A-Z0-9]/g, '');
+        if ((compact.match(/\d/g) || []).length >= Math.max(6, compact.length * 0.65)) {
+            compact = compact.replace(/[OQD]/g, '0').replace(/[IL]/g, '1').replace(/S/g, '5').replace(/B/g, '8');
+        }
+        if (compact.length < 7 || compact.length > 40) return '';
+        if ((compact.match(/\d/g) || []).length < 4) return '';
+        return compact;
+    }
+
+    function extractSerialNumber(text) {
+        const clean = cleanOcrText(text);
+        const lines = clean.split('\n').map(line => line.trim()).filter(Boolean);
+        const labelPattern = /(?:SERIAL(?:[.\s:#-]*(?:NO|NUMBER|NR))?|SER(?:IEN)?[.\s:#-]*NR|S\s*[\/.\-]\s*N|VYROBN[EÉ]\s*C[ÍI]SLO|FABRIK[.\s:#-]*NR|WERK[.\s:#-]*NR)/i;
+
+        for (let i = 0; i < lines.length; i++) {
+            const match = lines[i].match(labelPattern);
+            if (!match) continue;
+            const after = lines[i].slice((match.index || 0) + match[0].length);
+            let candidate = serialCandidate(after);
+            if (!candidate && lines[i + 1]) candidate = serialCandidate(lines[i + 1]);
+            if (candidate) return candidate;
+        }
+
+        const fallback = [];
+        for (const line of lines) {
+            if (/\b(?:MODEL|TYPE|TYP|ART|ARTICLE|PRODUCT|EAN|VWL|VIH|VWZ|VUW|\bVU\b|VSC|\bVE\b|VPM)\b/i.test(line)) continue;
+            const matches = line.match(/[A-Z0-9][A-Z0-9\s-]{11,40}/g) || [];
+            for (const value of matches) {
+                const candidate = serialCandidate(value);
+                const digitCount = (candidate.match(/\d/g) || []).length;
+                if (candidate.length >= 12 && digitCount >= 9) fallback.push(candidate);
+            }
+        }
+        fallback.sort((a, b) => b.length - a.length);
+        return fallback[0] || '';
+    }
+
+    function inferDeviceType(model, text) {
+        const value = `${model} ${text}`.toUpperCase();
+        if (/\bVPM\b|AGUAFLOW/.test(value)) return 'pitna_voda';
+        if (/\bVE\s*\d|ELOBLOCK/.test(value)) return 'elektro';
+        if (/ECOTEC|COMPACT|\bVUW?\s*\d|\bVSC\s*\d/.test(value)) return 'kotol';
+        return 'tc';
+    }
+
+    function inferTarget(model, deviceType) {
+        if (deviceType !== 'tc') return 'ext';
+        const value = String(model || '').toUpperCase();
+        if (/\bIS\b|\bVIH\b|\bVWZ\b|UNITOWER|HYDRAUL/.test(value)) return 'int';
+        if (/\bAS\b|\bA\b|AROTHERM/.test(value)) return 'ext';
+        const extSerial = document.getElementById('extSerial')?.value.trim();
+        const intSerial = document.getElementById('intSerial')?.value.trim();
+        if (extSerial && !intSerial) return 'int';
+        return 'ext';
+    }
+
+    function detectRefrigerant(text) {
+        const upper = String(text || '').toUpperCase().replace(/\s+/g, '');
+        if (upper.includes('R410A')) return 'R410A';
+        if (upper.includes('R290')) return 'R290';
+        if (upper.includes('R32')) return 'R32';
+        return '';
+    }
+
+    function allKnownModels() {
+        const holder = document.createElement('select');
+        holder.innerHTML = `${modelyTC_ext}${modelyTC_int}${modelyKotly}${modelyElektro}${modelyPitnaVoda}`;
+        return Array.from(holder.options).map(option => option.value).filter(value => value && value !== 'manual');
+    }
+
+    function matchKnownModel(model) {
+        const modelNorm = normalizeComparable(model);
+        if (!modelNorm) return '';
+        const code = extractModelCode(model) || model;
+        const codeNorm = normalizeComparable(code);
+        let best = '';
+        let bestScore = 0;
+        for (const known of allKnownModels()) {
+            const knownNorm = normalizeComparable(known);
+            let score = 0;
+            if (knownNorm === modelNorm) score = 100;
+            else if (codeNorm.length >= 5 && knownNorm.includes(codeNorm)) score = 90;
+            else if (knownNorm.includes(modelNorm) || modelNorm.includes(knownNorm)) score = 75;
+            if (score > bestScore) {
+                bestScore = score;
+                best = known;
+            }
+        }
+        return bestScore >= 75 ? best : '';
+    }
+
+    function setModelField(target, model) {
+        if (!model) return;
+        const selectId = target === 'int' ? 'intModel' : 'extModel';
+        const manualId = target === 'int' ? 'intModelManual' : 'extModelManual';
+        const select = document.getElementById(selectId);
+        const manual = document.getElementById(manualId);
+        if (!select || !manual) return;
+        const known = matchKnownModel(model);
+        if (known && Array.from(select.options).some(option => option.value === known)) {
+            select.value = known;
+            manual.value = '';
+            manual.style.display = 'none';
+        } else {
+            select.value = 'manual';
+            manual.value = model;
+            manual.style.display = 'block';
+        }
+    }
+
+    async function prepareLabelImage(file) {
+        const source = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+        const image = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = source;
+        });
+        let width = image.naturalWidth || image.width;
+        let height = image.naturalHeight || image.height;
+        const scale = Math.min(1, 2200 / Math.max(width, height));
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        const pixels = context.getImageData(0, 0, width, height);
+        const data = pixels.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const gray = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+            const contrasted = Math.max(0, Math.min(255, ((gray - 128) * 1.42) + 128));
+            data[i] = data[i + 1] = data[i + 2] = contrasted;
+        }
+        context.putImageData(pixels, 0, 0);
+        return { canvas, preview: canvas.toDataURL('image/jpeg', 0.9) };
+    }
+
+    async function detectBarcodes(imageSource) {
+        if (!('BarcodeDetector' in window)) return [];
+        try {
+            const desired = ['qr_code', 'data_matrix', 'code_128', 'code_39', 'ean_13'];
+            const supported = typeof BarcodeDetector.getSupportedFormats === 'function'
+                ? await BarcodeDetector.getSupportedFormats()
+                : desired;
+            const formats = desired.filter(format => supported.includes(format));
+            if (!formats.length) return [];
+            const detector = new BarcodeDetector({ formats });
+            const results = await detector.detect(imageSource);
+            return results.map(item => item.rawValue).filter(Boolean);
+        } catch (error) {
+            console.debug('Čiarový/QR kód nebolo možné načítať:', error);
+            return [];
+        }
+    }
+
+    async function getLabelOcrWorker() {
+        if (!window.Tesseract) throw new Error('OCR knižnica sa nenačítala. Skontrolujte internetové pripojenie.');
+        if (!labelOcrWorkerPromise) {
+            labelOcrWorkerPromise = Tesseract.createWorker('eng', 1, {
+                logger: message => {
+                    const progress = Number(message.progress || 0);
+                    const percent = Math.round(progress * 100);
+                    const labels = {
+                        'loading tesseract core': 'Načítavam OCR jadro',
+                        'initializing tesseract': 'Inicializujem OCR',
+                        'loading language traineddata': 'Načítavam jazykové dáta',
+                        'initializing api': 'Pripravujem rozpoznávanie',
+                        'recognizing text': 'Rozpoznávam text štítku'
+                    };
+                    setScanProgress(labels[message.status] || 'Spracovávam štítok', percent || 5);
+                }
+            });
+        }
+        return labelOcrWorkerPromise;
+    }
+
+    window.handleLabelScan = async function(event) {
+        const input = event.target;
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        const modal = document.getElementById('labelScanModal');
+        const preview = document.getElementById('labelScanPreview');
+        const placeholder = document.getElementById('labelScanPlaceholder');
+        modal.style.display = 'flex';
+        document.getElementById('scanDetectedModel').value = '';
+        document.getElementById('scanDetectedSerial').value = '';
+        document.getElementById('scanDetectedRefrigerant').value = '';
+        document.getElementById('scanRawText').value = '';
+        document.getElementById('scanConfidence').textContent = 'Rozpoznávam údaje. Prvé načítanie OCR môže trvať dlhšie.';
+        setScanProgress('Pripravujem fotografiu…', 3);
+
+        try {
+            const prepared = await prepareLabelImage(file);
+            preview.src = prepared.preview;
+            preview.style.display = 'block';
+            placeholder.style.display = 'none';
+
+            setScanProgress('Kontrolujem QR a čiarové kódy…', 10);
+            const barcodeValues = await detectBarcodes(prepared.canvas);
+
+            const worker = await getLabelOcrWorker();
+            const result = await worker.recognize(prepared.canvas, { rotateAuto: true });
+            const confidence = Math.round(Number(result.data.confidence || 0));
+            const combinedText = cleanOcrText([
+                result.data.text || '',
+                ...barcodeValues.map(value => `SERIAL ${value}`)
+            ].filter(Boolean).join('\n'));
+
+            const code = extractModelCode(combinedText);
+            const model = familyModelName(code, combinedText);
+            const serial = extractSerialNumber(combinedText);
+            const type = inferDeviceType(model, combinedText);
+            const target = inferTarget(model, type);
+            const refrigerant = detectRefrigerant(combinedText);
+
+            document.getElementById('scanDeviceType').value = type;
+            document.getElementById('scanTarget').value = target;
+            document.getElementById('scanDetectedModel').value = model;
+            document.getElementById('scanDetectedSerial').value = serial;
+            document.getElementById('scanDetectedRefrigerant').value = refrigerant;
+            document.getElementById('scanRawText').value = combinedText;
+            lastScanSuggestedTarget = target;
+
+            if (model || serial) {
+                applyScannedLabelData(false);
+                const parts = [];
+                if (model) parts.push(`model ${model}`);
+                if (serial) parts.push(`výrobné číslo ${serial}`);
+                document.getElementById('scanConfidence').textContent = `Rozpoznané (${confidence}%): ${parts.join(', ')}. Údaje boli doplnené; porovnajte ich so štítkom.`;
+                setScanProgress('Rozpoznanie dokončené – údaje boli doplnené.', 100);
+                window.showMessage('Model a výrobné číslo boli doplnené. Skontrolujte ich podľa štítku.');
+            } else {
+                document.getElementById('scanConfidence').textContent = `Text bol načítaný (${confidence}%), ale model ani výrobné číslo sa nepodarilo spoľahlivo určiť. Upravte polia ručne alebo odfoťte štítok znova.`;
+                setScanProgress('Údaje sa nepodarilo spoľahlivo rozpoznať.', 100);
+                window.showMessage('Model ani výrobné číslo sa nepodarilo rozpoznať.', 'error');
+            }
+        } catch (error) {
+            console.error('Chyba OCR štítku:', error);
+            document.getElementById('scanConfidence').textContent = error.message || String(error);
+            setScanProgress('Chyba pri rozpoznávaní štítku.', 100);
+            window.showMessage(`Štítok sa nepodarilo rozpoznať: ${error.message || error}`, 'error');
+        } finally {
+            input.value = '';
+        }
+    };
+
+    window.applyScannedLabelData = function(closeAfter = true) {
+        const model = document.getElementById('scanDetectedModel').value.trim();
+        const serial = document.getElementById('scanDetectedSerial').value.trim().replace(/\s+/g, '');
+        const type = document.getElementById('scanDeviceType').value || 'tc';
+        const refrigerant = document.getElementById('scanDetectedRefrigerant').value;
+        let target = document.getElementById('scanTarget').value;
+        if (target === 'auto') target = lastScanSuggestedTarget || inferTarget(model, type);
+        if (type !== 'tc') target = 'ext';
+
+        document.getElementById('typZariadenia').value = type;
+        if (refrigerant) document.getElementById('refType').value = refrigerant;
+        updateFormByDevice();
+        if (refrigerant) {
+            document.getElementById('refType').value = refrigerant;
+            updateFormByDevice();
+        }
+
+        if (model) setModelField(target, model);
+        if (serial) {
+            const serialField = document.getElementById(target === 'int' ? 'intSerial' : 'extSerial');
+            if (serialField) serialField.value = serial;
+        }
+        if (closeAfter) {
+            closeLabelScanModal();
+            window.showMessage('Údaje zo štítku boli vložené do protokolu.');
+        }
+    };
+
+    window.addEventListener('beforeunload', () => {
+        if (labelOcrWorkerPromise) {
+            labelOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {});
+        }
+    });
 
     let canvas, ctx, drawing = false;
     function initSignature() {
