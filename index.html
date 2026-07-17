@@ -396,10 +396,14 @@
         .photo-grid { display: flex; gap: 10px; }
         .photo-container { flex: 1; border: 1px dashed #ccc; height: 100px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 4px; overflow: hidden; }
         .photo-preview { max-width: 100%; max-height: 100%; display: none; }
-        .footer-sig { margin-top: 20px; display: flex; justify-content: space-between; }
-        .sig-column { width: 48%; text-align: center; }
+        .footer-sig { margin-top: 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
+        .sig-column { width: 48%; text-align: center; display: flex; flex-direction: column; }
+        .sig-content { height: 100px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .sig-content--customer { flex-direction: column; justify-content: flex-start; }
+        .sig-stamp { max-height: 80px; max-width: 100%; }
         .sig-label { font-size: 9px; color: #666; margin-top: 5px; border-top: 1px solid #333; padding-top: 3px; }
-        .signature-pad { border: 1px solid #eee; background: #fcfcfc; width: 100%; height: 80px; touch-action: none; cursor: crosshair; }
+        .signature-pad { border: 1px solid #eee; background: #fcfcfc; width: 100%; height: 80px; touch-action: none; cursor: crosshair; display: block; }
+        .btn-clear-sig { background: #d32f2f; color: white; border: none; font-size: 8px; cursor: pointer; border-radius: 2px; margin-top: 4px; padding: 1px 8px; line-height: 1.2; }
         
         .controls { position: fixed; bottom: 25px; right: 25px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
         .btn { padding: 8px 16px; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
@@ -520,13 +524,14 @@
 
             .footer-sig {
                 margin-top: 8px;
+                gap: 12px;
             }
 
-            .sig-column > div[style*="height: 80px"] {
-                height: 52px !important;
+            .sig-content {
+                height: 68px;
             }
 
-            .sig-column img {
+            .sig-stamp {
                 max-height: 52px !important;
             }
 
@@ -721,14 +726,16 @@
 
     <div class="footer-sig">
         <div class="sig-column">
-            <div style="height: 80px; display: flex; align-items: center; justify-content: center;">
-                <img src="Razitko a podpis.jpg" style="max-height: 80px; max-width: 100%;" onerror="this.style.display='none'">
+            <div class="sig-content">
+                <img src="Razitko a podpis.jpg" class="sig-stamp" onerror="this.style.display='none'">
             </div>
             <div class="sig-label">Podpis a pečiatka technika (VSP)</div>
         </div>
         <div class="sig-column">
-            <canvas id="sigPad" class="signature-pad"></canvas>
-            <button style="background: #d32f2f; color: white; border: none; font-size: 8px; cursor: pointer; border-radius: 2px; margin-top: 2px;" onclick="clearSig()">Vymazať</button>
+            <div class="sig-content sig-content--customer">
+                <canvas id="sigPad" class="signature-pad"></canvas>
+                <button class="btn-clear-sig" onclick="clearSig()">Vymazať</button>
+            </div>
             <div class="sig-label">Podpis zákazníka</div>
         </div>
     </div>
