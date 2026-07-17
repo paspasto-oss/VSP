@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protokol o uvedení do prevádzky - Vaillant | SPEKTRA INSTALL</title>
-    <!-- Firebase Libraries -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
+    <!-- Firebase Libraries - kompatibilná verzia fungujúca aj pri lokálnom otvorení HTML -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <script>
         const firebaseConfig = {
             apiKey: "AIzaSyCwcQRH3805_Fif-a451ER-0VxFsZh2l8s",
             authDomain: "vspspektra.firebaseapp.com",
@@ -21,114 +20,157 @@
             measurementId: "G-J0NXFGGJSM"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
         const appId = 'vspspektra-app';
+
+        function setFirebaseStatus(text, ok = false) {
+            const el = document.getElementById('firebaseStatus');
+            if (!el) return;
+            el.textContent = text;
+            el.style.background = ok ? '#E8F5E9' : '#FFF3E0';
+            el.style.color = ok ? '#1B5E20' : '#8A4B00';
+            el.style.borderColor = ok ? '#A5D6A7' : '#FFCC80';
+        }
+
+        function friendlyFirebaseError(error) {
+            const code = String(error?.code || '');
+            const message = String(error?.message || error || 'Neznáma chyba');
+            if (code.includes('operation-not-allowed')) {
+                return 'Anonymné prihlásenie nie je povolené. Vo Firebase otvorte Authentication → Sign-in method → Anonymous a zapnite ho.';
+            }
+            if (code.includes('permission-denied')) {
+                return 'Firestore pravidlá blokujú prístup. Skontrolujte kartu Firestore Database → Rules.';
+            }
+            if (code.includes('resource-exhausted') || message.toLowerCase().includes('maximum') || message.toLowerCase().includes('too large')) {
+                return 'Protokol je príliš veľký pre Firestore. Fotografie musia byť zmenšené alebo uložené do Firebase Storage.';
+            }
+            if (code.includes('unavailable') || code.includes('network-request-failed') || message.toLowerCase().includes('failed to fetch')) {
+                return 'Firebase nie je dostupný. Skontrolujte internet a spustite formulár cez http:// alebo https://, nie iba dvojklikom ako file://.';
+            }
+            return `${code ? code + ': ' : ''}${message}`;
+        }
+
+        function approximateObjectBytes(obj) {
+            return new Blob([JSON.stringify(obj)]).size;
+        }
+
+        function protocolsCollection() {
+            return db.collection('artifacts')
+                .doc(appId)
+                .collection('public')
+                .doc('data')
+                .collection('protocols');
+        }
 
         window.showMessage = function(text, type = 'info') {
             const box = document.getElementById('messageBox');
+            if (!box) return;
             box.textContent = text;
             box.style.backgroundColor = type === 'error' ? '#d32f2f' : '#00897B';
             box.style.display = 'block';
             setTimeout(() => { box.style.display = 'none'; }, 5000);
         };
 
+        async function ensureAuth() {
+            if (auth.currentUser) return auth.currentUser;
+            const result = await auth.signInAnonymously();
+            return result.user;
+        }
+
         const initAuth = async () => {
             try {
-                await signInAnonymously(auth);
+                await ensureAuth();
                 console.log("Firebase pripojený.");
-                // Po prihlásení vygenerujeme prvé číslo, ak je pole prázdne
-                if (!document.getElementById('protoCislo').value) {
-                    generateNextNumber();
+                setFirebaseStatus('Databáza: pripojená', true);
+                const protoInput = document.getElementById('protoCislo');
+                if (protoInput && !protoInput.value) {
+                    await window.generateNextNumber();
                 }
-            } catch (error) { console.error("Auth error:", error); }
+            } catch (error) {
+                console.error("Auth error:", error);
+                setFirebaseStatus('Databáza: nepripojená');
+                window.showMessage(friendlyFirebaseError(error), 'error');
+            }
         };
-        initAuth();
 
         // Funkcia na generovanie nasledujúceho čísla na základe dnešného dátumu a archívu
         window.generateNextNumber = async function() {
             const today = new Date();
-            const datePrefix = today.getFullYear() + 
-                               String(today.getMonth() + 1).padStart(2, '0') + 
+            const datePrefix = today.getFullYear() +
+                               String(today.getMonth() + 1).padStart(2, '0') +
                                String(today.getDate()).padStart(2, '0');
-            
             let nextSequence = 1;
 
             try {
-                // Načítame všetky protokoly (Rule 2: filter v pamäti)
-                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
+                await ensureAuth();
+                const querySnapshot = await protocolsCollection().get();
                 const todaysProtocols = [];
-                
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
+
+                querySnapshot.forEach(docSnap => {
+                    const data = docSnap.data();
                     if (data.protoCislo && data.protoCislo.startsWith(datePrefix)) {
                         todaysProtocols.push(data.protoCislo);
                     }
                 });
 
                 if (todaysProtocols.length > 0) {
-                    // Nájdeme najvyššie číslo v dnešnom dni
                     const sequences = todaysProtocols.map(num => {
                         const parts = num.split('-');
-                        return parts.length > 1 ? parseInt(parts[1]) : 0;
+                        return parts.length > 1 ? parseInt(parts[1], 10) || 0 : 0;
                     });
                     nextSequence = Math.max(...sequences) + 1;
                 }
-            } catch (e) {
-                console.error("Chyba pri hľadaní čísla, použijem 01:", e);
+            } catch (error) {
+                console.error("Chyba pri hľadaní čísla, použijem 01:", error);
             }
 
             const finalNumber = `${datePrefix}-${String(nextSequence).padStart(2, '0')}`;
-            document.getElementById('protoCislo').value = finalNumber;
+            const protoInput = document.getElementById('protoCislo');
+            if (protoInput) protoInput.value = finalNumber;
         };
 
         // Funkcia pre nový dokument
         window.createNewProtocol = async function() {
             if (!confirm("Naozaj chcete vytvoriť nový protokol? Neuložené zmeny v aktuálnom budú stratené.")) return;
-            
-            // Vymazanie polí
+
             const inputs = document.querySelectorAll('input[type="text"], textarea');
-            inputs.forEach(i => { if(i.id !== 'datumInput') i.value = ''; });
-            
-            // Reset selectov na predvolené
+            inputs.forEach(i => { if (i.id !== 'datumInput') i.value = ''; });
+
             document.getElementById('typZariadenia').value = 'tc';
             document.getElementById('magFilter').value = 'Áno';
-            
-            // Vymazanie fotiek
+
             document.getElementById('photoPreview1').style.display = 'none';
             document.getElementById('photoPlaceholder1').style.display = 'block';
             document.getElementById('photoPreview1').src = '';
             document.getElementById('photoPreview2').style.display = 'none';
             document.getElementById('photoPlaceholder2').style.display = 'block';
             document.getElementById('photoPreview2').src = '';
-            
-            // Vymazanie podpisu
+
             if (window.clearSig) window.clearSig();
-            
-            // Aktualizácia UI a dátumu
+
             const today = new Date();
             document.getElementById('datumInput').value = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
             updateFormByDevice();
-            
-            // Vygenerovanie nového čísla
-            await generateNextNumber();
+
+            await window.generateNextNumber();
             window.showMessage("Nový protokol pripravený.");
         };
 
         window.saveToArchive = async function() {
-            if (!auth.currentUser) { window.showMessage("Chyba: Databáza nie je pripojená.", 'error'); return; }
             const loader = document.getElementById('globalLoader');
             loader.style.display = 'flex';
+
             try {
+                await ensureAuth();
+
                 const canvas = document.getElementById('sigPad');
                 const protoCisloRaw = document.getElementById('protoCislo').value.trim();
                 const zakaznikMenoRaw = document.getElementById('zakaznikMeno').value.trim();
 
                 if (!protoCisloRaw || !zakaznikMenoRaw) {
-                    window.showMessage("Chyba: Číslo protokolu a meno zákazníka sú povinné.", 'error');
-                    loader.style.display = 'none';
-                    return;
+                    throw new Error("Číslo protokolu a meno zákazníka sú povinné.");
                 }
 
                 const sanitizedName = zakaznikMenoRaw.replace(/[/\\?%*:|"<>\s]/g, '_');
@@ -159,17 +201,28 @@
                     maxOut: document.getElementById('maxOut').value,
                     limit: document.getElementById('limit').value,
                     notes: document.getElementById('notes').value,
-                    signature: canvas.toDataURL(),
+                    signature: canvas.toDataURL('image/png'),
                     photo1: document.getElementById('photoPreview1').src.startsWith('data:') ? document.getElementById('photoPreview1').src : null,
                     photo2: document.getElementById('photoPreview2').src.startsWith('data:') ? document.getElementById('photoPreview2').src : null,
                     datum: document.getElementById('datumInput').value,
                     createdAt: new Date().toISOString()
                 };
 
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'protocols', docId), data);
+                const estimatedBytes = approximateObjectBytes(data);
+                if (estimatedBytes > 900000) {
+                    throw new Error(`Protokol má približne ${Math.round(estimatedBytes / 1024)} kB a prekračuje bezpečný limit. Zmenšite fotografie.`);
+                }
+
+                await protocolsCollection().doc(docId).set(data);
+                setFirebaseStatus('Databáza: pripojená', true);
                 window.showMessage(`Protokol uložený: ${docId}`);
-            } catch (error) { window.showMessage("Chyba: " + error.message, 'error'); }
-            finally { loader.style.display = 'none'; }
+            } catch (error) {
+                console.error("Chyba pri ukladaní:", error);
+                setFirebaseStatus('Databáza: chyba pri ukladaní');
+                window.showMessage(friendlyFirebaseError(error), 'error');
+            } finally {
+                loader.style.display = 'none';
+            }
         };
 
         window.openArchive = async function() {
@@ -177,34 +230,64 @@
             modal.style.display = 'flex';
             const list = document.getElementById('archiveList');
             list.innerHTML = 'Načítavam...';
+
             try {
-                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
+                await ensureAuth();
+                const querySnapshot = await protocolsCollection().get();
                 list.innerHTML = '';
-                querySnapshot.forEach((docSnap) => {
-                    const item = docSnap.data();
+
+                if (querySnapshot.empty) {
+                    list.innerHTML = '<div style="padding:10px; color:#777;">Archív je zatiaľ prázdny.</div>';
+                    return;
+                }
+
+                const items = [];
+                querySnapshot.forEach(docSnap => items.push({ id: docSnap.id, ...docSnap.data() }));
+                items.sort((a, b) => String(b.protoCislo || '').localeCompare(String(a.protoCislo || '')));
+
+                items.forEach(item => {
                     const row = document.createElement('div');
                     row.className = 'archive-item';
-                    row.innerHTML = `<div><strong>${item.protoCislo}</strong><br><small>${item.zakaznikMeno}</small></div><button class="btn-select" onclick="loadProtocolData('${docSnap.id}')">Otvoriť</button>`;
+
+                    const info = document.createElement('div');
+                    const strong = document.createElement('strong');
+                    strong.textContent = item.protoCislo || 'Bez čísla';
+                    const br = document.createElement('br');
+                    const small = document.createElement('small');
+                    small.textContent = item.zakaznikMeno || 'Bez mena';
+                    info.append(strong, br, small);
+
+                    const button = document.createElement('button');
+                    button.className = 'btn-select';
+                    button.textContent = 'Otvoriť';
+                    button.addEventListener('click', () => window.loadProtocolData(item.id));
+
+                    row.append(info, button);
                     list.appendChild(row);
                 });
-            } catch (e) { list.innerHTML = 'Chyba pripojenia.'; }
+            } catch (error) {
+                console.error("Chyba pri otvorení archívu:", error);
+                list.innerHTML = 'Chyba pripojenia: ' + friendlyFirebaseError(error);
+            }
         };
 
         window.loadProtocolData = async function(docId) {
             document.getElementById('globalLoader').style.display = 'flex';
             document.getElementById('archiveModal').style.display = 'none';
+
             try {
-                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'protocols'));
-                const data = querySnapshot.docs.find(d => d.id === docId).data();
-                
+                await ensureAuth();
+                const docSnap = await protocolsCollection().doc(docId).get();
+                if (!docSnap.exists) throw new Error('Protokol sa v archíve nenašiel.');
+                const data = docSnap.data();
+
                 document.getElementById('typZariadenia').value = data.typZariadenia || 'tc';
                 updateFormByDevice();
-                
-                // TU SA NAČÍTA PÔVODNÉ ČÍSLO Z ARCHÍVU (NEMENÍ SA)
+
                 document.getElementById('protoCislo').value = data.protoCislo || '';
                 document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
                 document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
-                
+
                 handleModelLoading('extModel', 'extModelManual', data.extModel);
                 handleModelLoading('intModel', 'intModelManual', data.intModel);
 
@@ -213,7 +296,7 @@
                 document.getElementById('tankType').value = data.tankType || '';
                 document.getElementById('tankVol').value = data.tankVol || '';
                 document.getElementById('refType').value = data.refType || 'R290';
-                
+
                 updateFormByDevice();
 
                 document.getElementById('refAmbientTemp').value = data.refAmbientTemp || '';
@@ -231,38 +314,69 @@
                 document.getElementById('notes').value = data.notes || '';
                 document.getElementById('datumInput').value = data.datum || '';
 
-                if (data.photo1) { document.getElementById('photoPreview1').src = data.photo1; document.getElementById('photoPreview1').style.display = 'block'; document.getElementById('photoPlaceholder1').style.display = 'none'; }
-                else { document.getElementById('photoPreview1').style.display = 'none'; document.getElementById('photoPlaceholder1').style.display = 'block'; }
-                
-                if (data.photo2) { document.getElementById('photoPreview2').src = data.photo2; document.getElementById('photoPreview2').style.display = 'block'; document.getElementById('photoPlaceholder2').style.display = 'none'; }
-                else { document.getElementById('photoPreview2').style.display = 'none'; document.getElementById('photoPlaceholder2').style.display = 'block'; }
-                
+                if (data.photo1) {
+                    document.getElementById('photoPreview1').src = data.photo1;
+                    document.getElementById('photoPreview1').style.display = 'block';
+                    document.getElementById('photoPlaceholder1').style.display = 'none';
+                } else {
+                    document.getElementById('photoPreview1').style.display = 'none';
+                    document.getElementById('photoPlaceholder1').style.display = 'block';
+                }
+
+                if (data.photo2) {
+                    document.getElementById('photoPreview2').src = data.photo2;
+                    document.getElementById('photoPreview2').style.display = 'block';
+                    document.getElementById('photoPlaceholder2').style.display = 'none';
+                } else {
+                    document.getElementById('photoPreview2').style.display = 'none';
+                    document.getElementById('photoPlaceholder2').style.display = 'block';
+                }
+
                 if (data.signature) {
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.getElementById('sigPad');
                         const ctx = canvas.getContext('2d');
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0, canvas.width/(window.devicePixelRatio||1), canvas.height/(window.devicePixelRatio||1));
+                        ctx.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
                     };
                     img.src = data.signature;
-                } else { window.clearSig(); }
-                
+                } else if (window.clearSig) {
+                    window.clearSig();
+                }
+
                 window.showMessage("Protokol načítaný z archívu.");
-            } catch (e) { window.showMessage("Chyba načítania.", 'error'); }
-            finally { document.getElementById('globalLoader').style.display = 'none'; }
+            } catch (error) {
+                console.error("Chyba načítania:", error);
+                window.showMessage("Chyba načítania: " + (error.code || error.message), 'error');
+            } finally {
+                document.getElementById('globalLoader').style.display = 'none';
+            }
         };
 
         function handleModelLoading(selectId, manualId, value) {
             const select = document.getElementById(selectId);
             const manualInput = document.getElementById(manualId);
             let found = false;
+
             for (let i = 0; i < select.options.length; i++) {
-                if (select.options[i].value === value) { select.selectedIndex = i; found = true; break; }
+                if (select.options[i].value === value) {
+                    select.selectedIndex = i;
+                    found = true;
+                    break;
+                }
             }
-            if (!found && value) { select.value = "manual"; manualInput.value = value; manualInput.style.display = "block"; }
-            else { manualInput.style.display = "none"; }
+
+            if (!found && value) {
+                select.value = 'manual';
+                manualInput.value = value;
+                manualInput.style.display = 'block';
+            } else {
+                manualInput.style.display = 'none';
+            }
         }
+
+        document.addEventListener('DOMContentLoaded', initAuth);
     </script>
 
     <style>
@@ -300,11 +414,150 @@
         .archive-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
         .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         
+        /* Tlačový výstup: celý protokol na jednej strane A4 */
+        @page {
+            size: A4 portrait;
+            margin: 5mm;
+        }
+
         @media print {
-            .controls, .btn-clear, #archiveModal, #globalLoader, #messageBox { display: none !important; }
-            .paper { box-shadow: none; margin: 0; width: 100%; padding: 5mm 10mm; }
-            input, textarea, select { border-bottom: none !important; -webkit-appearance: none; appearance: none; }
-            h2 { -webkit-print-color-adjust: exact; background-color: var(--vaillant-teal) !important; color: white !important; }
+            html, body {
+                width: auto;
+                min-height: 0;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+            }
+
+            body {
+                line-height: 1.12;
+            }
+
+            .controls, .btn-clear, #archiveModal, #globalLoader, #messageBox,
+            .footer-sig button {
+                display: none !important;
+            }
+
+            .paper {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                min-height: 0;
+                padding: 0;
+                overflow: visible;
+            }
+
+            /* Zachovanie farieb a pôvodného dizajnu pri tlači */
+            *, *::before, *::after {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            header {
+                padding-bottom: 4px;
+                margin-bottom: 6px;
+            }
+
+            .logo-text {
+                font-size: 24px;
+            }
+
+            h1 {
+                font-size: 13px;
+            }
+
+            h2 {
+                font-size: 10px;
+                padding: 3px 10px;
+                margin: 6px 0 3px 0;
+                background-color: var(--vaillant-teal) !important;
+                color: white !important;
+                page-break-after: avoid;
+                break-after: avoid-page;
+            }
+
+            table {
+                margin-bottom: 4px;
+                font-size: 10px;
+                page-break-inside: auto;
+                break-inside: auto;
+            }
+
+            th, td {
+                padding: 2px 6px;
+            }
+
+            /* Jeden riadok tabuľky zostane vždy celý */
+            tr,
+            table > tbody > tr,
+            th,
+            td {
+                page-break-inside: avoid !important;
+                break-inside: avoid-page !important;
+            }
+
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
+
+            input, textarea, select {
+                border-bottom: none !important;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+
+            #notes {
+                min-height: 28px !important;
+                padding: 3px !important;
+            }
+
+            .photo-grid {
+                gap: 8px;
+            }
+
+            .photo-container {
+                height: 66px;
+            }
+
+            .footer-sig {
+                margin-top: 8px;
+            }
+
+            .sig-column > div[style*="height: 80px"] {
+                height: 52px !important;
+            }
+
+            .sig-column img {
+                max-height: 52px !important;
+            }
+
+            .signature-pad {
+                height: 52px;
+            }
+
+            .sig-label {
+                margin-top: 2px;
+                padding-top: 2px;
+            }
+
+            .paper > div:last-child {
+                margin-top: 8px !important;
+                padding-top: 4px !important;
+            }
+
+            /* Nedeliť funkčné bloky medzi dve strany */
+            header,
+            .photo-grid,
+            .photo-container,
+            .footer-sig,
+            .sig-column,
+            .signature-pad {
+                page-break-inside: avoid !important;
+                break-inside: avoid-page !important;
+            }
+
+            textarea {
+                resize: none;
+            }
         }
     </style>
 </head>
@@ -314,6 +567,7 @@
 <div id="messageBox"></div>
 
 <div class="controls">
+    <div id="firebaseStatus" style="padding:7px 10px; border:1px solid #FFCC80; border-radius:8px; background:#FFF3E0; color:#8A4B00; font-size:10px; font-weight:700; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,.12);">Databáza: pripájam…</div>
     <button class="btn btn-new" onclick="createNewProtocol()">+ Nový protokol</button>
     <button class="btn btn-save" onclick="saveToArchive()">Uložiť do archívu</button>
     <button class="btn btn-archive" onclick="openArchive()">Otvoriť archív</button>
@@ -646,14 +900,59 @@
         document.getElementById(manualInputId).style.display = (select.value === "manual") ? "block" : "none";
     }
 
-    window.previewImage = function(event, previewId, placeholderId) {
-        const reader = new FileReader();
-        reader.onload = () => {
+    async function compressPhoto(file, maxSide = 1100, targetBytes = 240000) {
+        const sourceUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        const img = await new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = reject;
+            image.src = sourceUrl;
+        });
+
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+        const scale = Math.min(1, maxSide / Math.max(width, height));
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        context.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.76;
+        let result = canvas.toDataURL('image/jpeg', quality);
+        while ((result.length * 0.75) > targetBytes && quality > 0.36) {
+            quality -= 0.08;
+            result = canvas.toDataURL('image/jpeg', quality);
+        }
+        return result;
+    }
+
+    window.previewImage = async function(event, previewId, placeholderId) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        try {
+            window.showMessage('Spracovávam a zmenšujem fotografiu…');
+            const compressed = await compressPhoto(file);
             const out = document.getElementById(previewId);
             document.getElementById(placeholderId).style.display = 'none';
-            out.src = reader.result; out.style.display = 'block';
-        };
-        if(event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
+            out.src = compressed;
+            out.style.display = 'block';
+            window.showMessage('Fotografia pripravená na uloženie.');
+        } catch (error) {
+            console.error('Chyba fotografie:', error);
+            window.showMessage('Fotografiu sa nepodarilo načítať.', 'error');
+        } finally {
+            event.target.value = '';
+        }
     };
 
     let canvas, ctx, drawing = false;
