@@ -291,17 +291,130 @@
                     small.textContent = `${owner} • ${location}`;
                     info.append(strong, br, small);
 
-                    const button = document.createElement('button');
-                    button.className = 'btn-select';
-                    button.textContent = 'Otvoriť';
-                    button.addEventListener('click', () => window.loadProtocolData(item.id));
+                    info.className = 'archive-info';
 
-                    row.append(info, button);
+                    const actions = document.createElement('div');
+                    actions.className = 'archive-actions';
+
+                    const openButton = document.createElement('button');
+                    openButton.className = 'btn-select';
+                    openButton.textContent = 'Otvoriť';
+                    openButton.addEventListener('click', () => window.loadProtocolData(item.id));
+
+                    const newButton = document.createElement('button');
+                    newButton.className = 'btn-new-from-archive';
+                    newButton.textContent = 'Nový z údajov';
+                    newButton.title = 'Vytvorí nový protokol s údajmi zákazníka a miesta inštalácie';
+                    newButton.addEventListener('click', () => window.newProtocolFromArchive(item.id));
+
+                    actions.append(openButton, newButton);
+                    row.append(info, actions);
                     list.appendChild(row);
                 });
             } catch (error) {
                 console.error("Chyba pri otvorení archívu:", error);
                 list.innerHTML = 'Chyba pripojenia: ' + friendlyFirebaseError(error);
+            }
+        };
+
+
+        window.newProtocolFromArchive = async function(docId) {
+            const loader = document.getElementById('globalLoader');
+            const modal = document.getElementById('archiveModal');
+            loader.style.display = 'flex';
+            modal.style.display = 'none';
+
+            try {
+                await ensureAuth();
+                const docSnap = await protocolsCollection().doc(docId).get();
+                if (!docSnap.exists) throw new Error('Protokol sa v archíve nenašiel.');
+                const data = docSnap.data();
+                const customerName = data.zakaznikMeno || 'vybraného zákazníka';
+
+                const confirmed = confirm(
+                    `Vytvoriť nový protokol pre ${customerName}?\n\n` +
+                    'Prevezmú sa údaje zákazníka, kontakty, miesto inštalácie, technik a typ zariadenia. ' +
+                    'Model, výrobné číslo, merania, poznámky, fotografia a podpis sa vymažú.'
+                );
+
+                if (!confirmed) {
+                    modal.style.display = 'flex';
+                    return;
+                }
+
+                // Základné údaje, ktoré majú zostať rovnaké pri viacerých zariadeniach.
+                document.getElementById('typZariadenia').value = data.typZariadenia || 'tc';
+                document.getElementById('refType').value = data.refType || 'R290';
+                updateFormByDevice();
+
+                document.getElementById('technik').value = data.technik || 'Pavol Pastorek';
+                updateTechnicianContact(true);
+                document.getElementById('technikTelefon').value = data.technikTelefon || document.getElementById('technikTelefon').value;
+                document.getElementById('technikEmail').value = data.technikEmail || document.getElementById('technikEmail').value;
+
+                document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
+                document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
+                document.getElementById('zakaznikTelefon').value = data.zakaznikTelefon || '';
+                document.getElementById('zakaznikEmail').value = data.zakaznikEmail || '';
+                document.getElementById('miestoInstalacie').value = data.miestoInstalacie || data.zakaznikAdresa || '';
+                document.getElementById('umiestnenieZariadenia').value = data.umiestnenieZariadenia || '';
+
+                // Údaje konkrétneho zariadenia sa vždy začínajú nanovo.
+                document.getElementById('extModel').value = '';
+                document.getElementById('extModelManual').value = '';
+                document.getElementById('extModelManual').style.display = 'none';
+                document.getElementById('extSerial').value = '';
+                document.getElementById('intModel').value = '';
+                document.getElementById('intModelManual').value = '';
+                document.getElementById('intModelManual').style.display = 'none';
+                document.getElementById('intSerial').value = '';
+                document.getElementById('tankType').value = '';
+                document.getElementById('tankVol').value = '';
+                document.getElementById('refAmbientTemp').value = '';
+                document.getElementById('flowMin').value = '';
+                document.getElementById('limit').value = '';
+                document.getElementById('notes').value = '';
+
+                document.getElementById('hardness').value = '8.0';
+                document.getElementById('ph').value = '8.0';
+                document.getElementById('magFilter').value = 'Áno';
+                document.getElementById('frostProtect').value = 'Bez (voda)';
+
+                const deviceType = document.getElementById('typZariadenia').value;
+                if (deviceType === 'tc') {
+                    document.getElementById('curve').value = '0.5';
+                    document.getElementById('bival').value = '-7';
+                    document.getElementById('maxOut').value = '45';
+                } else if (deviceType === 'kotol') {
+                    document.getElementById('curve').value = '0.5';
+                    document.getElementById('bival').value = '8.9';
+                    document.getElementById('maxOut').value = '65';
+                    document.getElementById('oxygen').value = '5.0';
+                    document.getElementById('carbonMonoxide').value = '10';
+                    document.getElementById('gasLeak').value = '0';
+                } else {
+                    document.getElementById('curve').value = '';
+                    document.getElementById('bival').value = '';
+                    document.getElementById('maxOut').value = '';
+                }
+
+                const photo = document.getElementById('photoPreview1');
+                const placeholder = document.getElementById('photoPlaceholder1');
+                photo.src = '';
+                photo.style.display = 'none';
+                placeholder.style.display = 'block';
+
+                if (window.clearSig) window.clearSig();
+
+                document.getElementById('datumInput').value = localIsoDate(new Date());
+                await window.generateNextNumber();
+
+                window.showMessage(`Nový protokol pre ${customerName} je pripravený.`);
+            } catch (error) {
+                console.error('Chyba pri vytváraní nového protokolu z archívu:', error);
+                window.showMessage('Chyba: ' + (error.code || error.message), 'error');
+            } finally {
+                loader.style.display = 'none';
             }
         };
 
@@ -517,8 +630,17 @@
         
         #messageBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 5px; color: white; z-index: 4000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         #globalLoader { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.7); display: none; align-items: center; justify-content: center; z-index: 3000; font-weight: bold; color: var(--vaillant-teal); }
-        .archive-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
-        .btn-select { background: var(--vaillant-teal); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .archive-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid #eee; }
+        .archive-info { flex: 1 1 auto; min-width: 0; }
+        .archive-actions { display: flex; flex: 0 0 auto; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+        .btn-select, .btn-new-from-archive { color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 700; white-space: nowrap; }
+        .btn-select { background: var(--vaillant-teal); }
+        .btn-new-from-archive { background: #F57C00; }
+        .btn-select:hover, .btn-new-from-archive:hover { filter: brightness(.94); }
+        @media (max-width: 620px) {
+            .archive-item { align-items: flex-start; flex-direction: column; }
+            .archive-actions { width: 100%; justify-content: flex-start; }
+        }
         .document-content { display: block; }
         .doc-block { break-inside: avoid; page-break-inside: avoid; }
         .measurement-warning { margin: -2px 0 6px; font-size: 9px; color: #8A4B00; background: #FFF8E1; border-left: 3px solid #FFB300; padding: 4px 7px; }
@@ -724,7 +846,7 @@
 </div>
 
 <div id="archiveModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000;" onclick="this.style.display='none'">
-    <div class="modal-content" style="background: white; padding: 25px; border-radius: 8px; width: 450px; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+    <div class="modal-content" style="background: white; padding: 25px; border-radius: 8px; width: min(620px, 92vw); max-height: 80vh; overflow-y: auto; box-sizing: border-box;" onclick="event.stopPropagation()">
         <h3 style="margin-top:0; color:var(--vaillant-teal);">Archív uložených protokolov</h3>
         <div id="archiveList"></div>
     </div>
