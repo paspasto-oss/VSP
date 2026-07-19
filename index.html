@@ -113,38 +113,42 @@
             }
         };
 
-        // Funkcia na generovanie nasledujúceho čísla na základe dnešného dátumu a archívu
+        // Automatické číslovanie protokolu vo formáte RRMM-XX, napr. 2607-01.
+        // Počítadlo sa každý mesiac začína od 01 a zvyšuje sa podľa uloženého archívu.
+        // Pole zostáva textové, preto je celé číslo možné ručne upraviť.
         window.generateNextNumber = async function() {
             const today = new Date();
-            const datePrefix = today.getFullYear() +
-                               String(today.getMonth() + 1).padStart(2, '0') +
-                               String(today.getDate()).padStart(2, '0');
+            const year = String(today.getFullYear()).slice(-2);
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const numberPrefix = `${year}${month}`;
             let nextSequence = 1;
 
             try {
                 await ensureAuth();
                 const querySnapshot = await protocolsCollection().get();
-                const todaysProtocols = [];
+                const sequences = [];
 
                 querySnapshot.forEach(docSnap => {
                     const data = docSnap.data();
-                    if (data.protoCislo && data.protoCislo.startsWith(datePrefix)) {
-                        todaysProtocols.push(data.protoCislo);
+                    const protocolNumber = String(data.protoCislo || '').trim();
+                    const expectedPrefix = `${numberPrefix}-`;
+                    if (protocolNumber.startsWith(expectedPrefix)) {
+                        const suffix = protocolNumber.slice(expectedPrefix.length);
+                        if (/^\d+$/.test(suffix)) {
+                            const sequence = parseInt(suffix, 10);
+                            if (Number.isFinite(sequence)) sequences.push(sequence);
+                        }
                     }
                 });
 
-                if (todaysProtocols.length > 0) {
-                    const sequences = todaysProtocols.map(num => {
-                        const parts = num.split('-');
-                        return parts.length > 1 ? parseInt(parts[1], 10) || 0 : 0;
-                    });
+                if (sequences.length > 0) {
                     nextSequence = Math.max(...sequences) + 1;
                 }
             } catch (error) {
                 console.error("Chyba pri hľadaní čísla, použijem 01:", error);
             }
 
-            const finalNumber = `${datePrefix}-${String(nextSequence).padStart(2, '0')}`;
+            const finalNumber = `${numberPrefix}-${String(nextSequence).padStart(2, '0')}`;
             const protoInput = document.getElementById('protoCislo');
             if (protoInput) protoInput.value = finalNumber;
         };
@@ -789,7 +793,7 @@
             </div>
             <div class="header-meta-row">
                 <span class="header-meta-label">Číslo protokolu:</span>
-                <input type="text" id="protoCislo" class="header-meta-control" placeholder="Načítavam...">
+                <input type="text" id="protoCislo" class="header-meta-control" placeholder="2607-01" title="Automatický formát RRMM-XX; celé číslo môžete ručne upraviť.">
             </div>
             <div class="header-meta-row">
                 <span class="header-meta-label">Dátum:</span>
