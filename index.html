@@ -157,6 +157,7 @@
             inputs.forEach(i => { if (i.id !== 'datumInput') i.value = ''; });
 
             document.getElementById('typZariadenia').value = 'tc';
+            document.getElementById('technik').value = 'Pavol Pastorek';
             document.getElementById('magFilter').value = 'Áno';
 
             document.getElementById('photoPreview1').style.display = 'none';
@@ -186,9 +187,10 @@
                 const canvas = document.getElementById('sigPad');
                 const protoCisloRaw = document.getElementById('protoCislo').value.trim();
                 const zakaznikMenoRaw = document.getElementById('zakaznikMeno').value.trim();
+                const miestoInstalacieRaw = document.getElementById('miestoInstalacie').value.trim();
 
-                if (!protoCisloRaw || !zakaznikMenoRaw) {
-                    throw new Error("Číslo protokolu a meno zákazníka sú povinné.");
+                if (!protoCisloRaw || !zakaznikMenoRaw || !miestoInstalacieRaw) {
+                    throw new Error("Číslo protokolu, zákazník a miesto inštalácie sú povinné.");
                 }
 
                 const sanitizedName = zakaznikMenoRaw.replace(/[/\\?%*:|"<>\s]/g, '_');
@@ -196,9 +198,12 @@
 
                 const data = {
                     typZariadenia: document.getElementById('typZariadenia').value,
+                    technik: document.getElementById('technik').value,
                     protoCislo: protoCisloRaw,
                     zakaznikMeno: zakaznikMenoRaw,
                     zakaznikAdresa: document.getElementById('zakaznikAdresa').value,
+                    miestoInstalacie: miestoInstalacieRaw,
+                    umiestnenieZariadenia: document.getElementById('umiestnenieZariadenia').value,
                     extModel: document.getElementById('extModel').value === "manual" ? document.getElementById('extModelManual').value : document.getElementById('extModel').value,
                     extSerial: document.getElementById('extSerial').value,
                     intModel: document.getElementById('intModel').value === "manual" ? document.getElementById('intModelManual').value : document.getElementById('intModel').value,
@@ -276,7 +281,9 @@
                     strong.textContent = item.protoCislo || 'Bez čísla';
                     const br = document.createElement('br');
                     const small = document.createElement('small');
-                    small.textContent = item.zakaznikMeno || 'Bez mena';
+                    const owner = item.zakaznikMeno || 'Bez mena';
+                    const location = item.miestoInstalacie || item.zakaznikAdresa || 'Miesto neuvedené';
+                    small.textContent = `${owner} • ${location}`;
                     info.append(strong, br, small);
 
                     const button = document.createElement('button');
@@ -307,8 +314,11 @@
                 updateFormByDevice();
 
                 document.getElementById('protoCislo').value = data.protoCislo || '';
+                document.getElementById('technik').value = data.technik || 'Pavol Pastorek';
                 document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
                 document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
+                document.getElementById('miestoInstalacie').value = data.miestoInstalacie || data.zakaznikAdresa || '';
+                document.getElementById('umiestnenieZariadenia').value = data.umiestnenieZariadenia || '';
 
                 handleModelLoading('extModel', 'extModelManual', data.extModel);
                 handleModelLoading('intModel', 'intModelManual', data.intModel);
@@ -432,6 +442,8 @@
         th { background-color: white; width: 25%; font-weight: 600; color: #555; }
         input[type="text"], select, textarea { width: 100%; border: none; border-bottom: 1px dashed #ccc; font-family: inherit; font-size: inherit; background: transparent; }
         input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
+        .technician-select { width: auto; min-width: 145px; border: none; border-bottom: 1px dashed #ccc; background: transparent; font-family: inherit; font-size: inherit; font-weight: 700; color: #333; padding: 0 18px 0 2px; cursor: pointer; }
+        .technician-select:focus { outline: none; border-bottom-color: var(--vaillant-teal); }
         .photo-grid { display: flex; gap: 10px; }
         .photo-container { flex: 1; border: 1px dashed #ccc; height: 100px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 4px; overflow: hidden; }
         .photo-preview { max-width: 100%; max-height: 100%; display: none; }
@@ -790,15 +802,29 @@
         <section class="doc-block doc-client">
             <table>
                 <tr>
-                    <th>Zákazník / Miesto inštalácie</th>
-                    <td>Meno: <input type="text" id="zakaznikMeno"><br>Adresa: <input type="text" id="zakaznikAdresa"></td>
+                    <th>Zákazník</th>
+                    <td>
+                        Meno / firma: <input type="text" id="zakaznikMeno"><br>
+                        Adresa zákazníka: <input type="text" id="zakaznikAdresa">
+                    </td>
+                </tr>
+                <tr>
+                    <th>Miesto inštalácie</th>
+                    <td>
+                        Adresa objektu: <input type="text" id="miestoInstalacie"><br>
+                        Umiestnenie zariadenia: <input type="text" id="umiestnenieZariadenia" placeholder="napr. kotolňa, technická miestnosť">
+                    </td>
                 </tr>
                 <tr>
                     <th style="vertical-align: top;">Autorizovaný servis (VSP)</th>
                     <td>
                         <strong>SPEKTRA INSTALL s.r.o.</strong><br>
                         Hollého 210, 015 01 Rajec (Prevádzka)<br>
-                        IČO: 53690036 | Technik: <strong>Pavol Pastorek</strong>
+                        IČO: 53690036 | Technik:
+                        <select id="technik" class="technician-select" aria-label="Technik">
+                            <option value="Pavol Pastorek">Pavol Pastorek</option>
+                            <option value="David Gabaj">David Gabaj</option>
+                        </select>
                     </td>
                 </tr>
             </table>
