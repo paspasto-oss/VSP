@@ -157,19 +157,17 @@
         window.createNewProtocol = async function() {
             if (!confirm("Naozaj chcete vytvoriť nový protokol? Neuložené zmeny v aktuálnom budú stratené.")) return;
 
-            const inputs = document.querySelectorAll('input[type="text"], textarea');
+            const inputs = document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], textarea');
             inputs.forEach(i => { if (i.id !== 'datumInput') i.value = ''; });
 
             document.getElementById('typZariadenia').value = 'tc';
             document.getElementById('technik').value = 'Pavol Pastorek';
+            updateTechnicianContact(true);
             document.getElementById('magFilter').value = 'Áno';
 
             document.getElementById('photoPreview1').style.display = 'none';
             document.getElementById('photoPlaceholder1').style.display = 'block';
             document.getElementById('photoPreview1').src = '';
-            document.getElementById('photoPreview2').style.display = 'none';
-            document.getElementById('photoPlaceholder2').style.display = 'block';
-            document.getElementById('photoPreview2').src = '';
 
             if (window.clearSig) window.clearSig();
 
@@ -206,6 +204,10 @@
                     protoCislo: protoCisloRaw,
                     zakaznikMeno: zakaznikMenoRaw,
                     zakaznikAdresa: document.getElementById('zakaznikAdresa').value,
+                    zakaznikTelefon: document.getElementById('zakaznikTelefon').value,
+                    zakaznikEmail: document.getElementById('zakaznikEmail').value,
+                    technikTelefon: document.getElementById('technikTelefon').value,
+                    technikEmail: document.getElementById('technikEmail').value,
                     miestoInstalacie: miestoInstalacieRaw,
                     umiestnenieZariadenia: document.getElementById('umiestnenieZariadenia').value,
                     extModel: document.getElementById('extModel').value === "manual" ? document.getElementById('extModelManual').value : document.getElementById('extModel').value,
@@ -234,7 +236,6 @@
                     notes: document.getElementById('notes').value,
                     signature: canvas.toDataURL('image/png'),
                     photo1: document.getElementById('photoPreview1').src.startsWith('data:') ? document.getElementById('photoPreview1').src : null,
-                    photo2: document.getElementById('photoPreview2').src.startsWith('data:') ? document.getElementById('photoPreview2').src : null,
                     datum: document.getElementById('datumInput').value,
                     createdAt: new Date().toISOString()
                 };
@@ -319,8 +320,13 @@
 
                 document.getElementById('protoCislo').value = data.protoCislo || '';
                 document.getElementById('technik').value = data.technik || 'Pavol Pastorek';
+                updateTechnicianContact(true);
                 document.getElementById('zakaznikMeno').value = data.zakaznikMeno || '';
                 document.getElementById('zakaznikAdresa').value = data.zakaznikAdresa || '';
+                document.getElementById('zakaznikTelefon').value = data.zakaznikTelefon || '';
+                document.getElementById('zakaznikEmail').value = data.zakaznikEmail || '';
+                document.getElementById('technikTelefon').value = data.technikTelefon || document.getElementById('technikTelefon').value;
+                document.getElementById('technikEmail').value = data.technikEmail || document.getElementById('technikEmail').value;
                 document.getElementById('miestoInstalacie').value = data.miestoInstalacie || data.zakaznikAdresa || '';
                 document.getElementById('umiestnenieZariadenia').value = data.umiestnenieZariadenia || '';
 
@@ -354,22 +360,15 @@
                 document.getElementById('notes').value = data.notes || '';
                 document.getElementById('datumInput').value = normalizeDateForInput(data.datum);
 
-                if (data.photo1) {
-                    document.getElementById('photoPreview1').src = data.photo1;
+                const archivedPhoto = data.photo1 || data.photo2 || null;
+                if (archivedPhoto) {
+                    document.getElementById('photoPreview1').src = archivedPhoto;
                     document.getElementById('photoPreview1').style.display = 'block';
                     document.getElementById('photoPlaceholder1').style.display = 'none';
                 } else {
+                    document.getElementById('photoPreview1').src = '';
                     document.getElementById('photoPreview1').style.display = 'none';
                     document.getElementById('photoPlaceholder1').style.display = 'block';
-                }
-
-                if (data.photo2) {
-                    document.getElementById('photoPreview2').src = data.photo2;
-                    document.getElementById('photoPreview2').style.display = 'block';
-                    document.getElementById('photoPlaceholder2').style.display = 'none';
-                } else {
-                    document.getElementById('photoPreview2').style.display = 'none';
-                    document.getElementById('photoPlaceholder2').style.display = 'block';
                 }
 
                 if (data.signature) {
@@ -444,13 +443,26 @@
         table, th, td { border: 1px solid var(--border-color); }
         th, td { padding: 4px 10px; text-align: left; }
         th { background-color: white; width: 25%; font-weight: 600; color: #555; }
-        input[type="text"], select, textarea { width: 100%; border: none; border-bottom: 1px dashed #ccc; font-family: inherit; font-size: inherit; background: transparent; }
+        input[type="text"], input[type="tel"], input[type="email"], select, textarea { width: 100%; border: none; border-bottom: 1px dashed #ccc; font-family: inherit; font-size: inherit; background: transparent; }
         input:focus { outline: none; border-bottom: 1px solid var(--vaillant-teal); }
         .technician-select { width: auto; min-width: 145px; border: none; border-bottom: 1px dashed #ccc; background: transparent; font-family: inherit; font-size: inherit; font-weight: 700; color: #333; padding: 0 18px 0 2px; cursor: pointer; }
         .technician-select:focus { outline: none; border-bottom-color: var(--vaillant-teal); }
-        .photo-grid { display: flex; gap: 10px; }
-        .photo-container { flex: 1; border: 1px dashed #ccc; height: 100px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 4px; overflow: hidden; }
-        .photo-preview { max-width: 100%; max-height: 100%; display: none; }
+        .contact-line { display: flex; align-items: center; gap: 6px; margin-top: 3px; white-space: nowrap; }
+        .contact-line .contact-label { color: #555; }
+        .contact-line input { display: inline-block; width: auto; min-width: 0; }
+        .contact-phone { flex: 0 0 125px; }
+        .contact-email { flex: 1 1 210px; }
+        .service-contact-line { max-width: 610px; }
+        .notes-photo-layout { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 58%); gap: 12px; align-items: stretch; }
+        .notes-photo-column { min-width: 0; display: flex; flex-direction: column; }
+        .notes-photo-column h2 { margin-top: 0; }
+        #notes { flex: 1 1 auto; min-height: 142px; box-sizing: border-box; resize: vertical; }
+        .photo-container { flex: 1 1 auto; border: 1px dashed #ccc; min-height: 142px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 4px; overflow: hidden; }
+        .photo-preview { width: 100%; height: 100%; object-fit: contain; display: none; }
+        @media (max-width: 760px) {
+            .notes-photo-layout { grid-template-columns: 1fr; }
+            #notes, .photo-container { min-height: 150px; }
+        }
         .footer-sig { margin-top: 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
         .sig-column { width: 48%; text-align: center; display: flex; flex-direction: column; }
         .sig-content { height: 100px; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -596,6 +608,9 @@
             }
 
             th, td { padding: 2.4px 6px; }
+            .contact-line { margin-top: 1px; gap: 4px; }
+            .contact-phone { flex-basis: 105px; }
+            .contact-email { flex-basis: 180px; }
 
             tr, table > tbody > tr, th, td {
                 page-break-inside: avoid !important;
@@ -629,15 +644,24 @@
                 -webkit-appearance: none;
             }
 
-            #notes {
-                min-height: 34px !important;
-                height: 34px !important;
-                padding: 4px !important;
-                box-sizing: border-box;
+            .notes-photo-layout {
+                grid-template-columns: minmax(0, 42%) minmax(0, 58%);
+                gap: 8px;
+                align-items: stretch;
             }
 
-            .photo-grid { gap: 8px; }
-            .photo-container { height: 78px; }
+            #notes {
+                min-height: 90px !important;
+                height: 90px !important;
+                padding: 4px !important;
+                box-sizing: border-box;
+                resize: none;
+            }
+
+            .photo-container {
+                min-height: 90px;
+                height: 90px;
+            }
 
             .check-list { font-size: 10px !important; margin: 3px 0 !important; }
             .check-list > div { margin-bottom: 2px !important; }
@@ -668,7 +692,7 @@
                 text-align: center;
             }
 
-            header, .photo-grid, .photo-container, .footer-sig,
+            header, .notes-photo-layout, .photo-container, .footer-sig,
             .sig-column, .signature-pad, .operation-result {
                 page-break-inside: avoid !important;
                 break-inside: avoid-page !important;
@@ -692,8 +716,7 @@
         <button class="btn btn-print" onclick="window.print(); closeActionMenu();">Tlačiť do PDF</button>
         <button class="btn btn-scan" type="button" onclick="openLabelCamera(); closeActionMenu();">Odfotiť štítok</button>
         <input id="labelScanInput" type="file" accept="image/*" capture="environment" style="display:none" onchange="handleLabelScan(event)">
-        <label class="btn btn-photo">Foto 1<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')"></label>
-        <label class="btn btn-photo">Foto 2<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview2', 'photoPlaceholder2')"></label>
+        <label class="btn btn-photo">Pridať foto<input type="file" accept="image/*" style="display: none;" onchange="previewImage(event, 'photoPreview1', 'photoPlaceholder1')"></label>
     </div>
     <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menu" onclick="toggleActionMenu(event)">
         <span></span><span></span><span></span>
@@ -810,6 +833,10 @@
                     <td>
                         Meno / firma: <input type="text" id="zakaznikMeno"><br>
                         Adresa zákazníka: <input type="text" id="zakaznikAdresa">
+                        <div class="contact-line">
+                            <span class="contact-label">Telefón:</span><input type="tel" id="zakaznikTelefon" class="contact-phone" autocomplete="tel">
+                            <span class="contact-label">E-mail:</span><input type="email" id="zakaznikEmail" class="contact-email" autocomplete="email">
+                        </div>
                     </td>
                 </tr>
                 <tr>
@@ -825,10 +852,14 @@
                         <strong>SPEKTRA INSTALL s.r.o.</strong><br>
                         Hollého 210, 015 01 Rajec (Prevádzka)<br>
                         IČO: 53690036 | Technik:
-                        <select id="technik" class="technician-select" aria-label="Technik">
+                        <select id="technik" class="technician-select" aria-label="Technik" onchange="updateTechnicianContact(true)">
                             <option value="Pavol Pastorek">Pavol Pastorek</option>
                             <option value="David Gabaj">David Gabaj</option>
                         </select>
+                        <div class="contact-line service-contact-line">
+                            <span class="contact-label">Telefón:</span><input type="tel" id="technikTelefon" class="contact-phone" autocomplete="tel">
+                            <span class="contact-label">E-mail:</span><input type="email" id="technikEmail" class="contact-email" autocomplete="email">
+                        </div>
                     </td>
                 </tr>
             </table>
@@ -943,16 +974,14 @@
             </table>
         </section>
 
-        <section class="doc-block">
-            <h2>5. POZNÁMKY</h2>
-            <textarea id="notes" style="width: 100%; min-height: 40px; border: 1px solid #eee; font-size: 11px; padding: 5px;"></textarea>
-        </section>
-
-        <section class="doc-block">
-            <h2>6. FOTODOKUMENTÁCIA</h2>
-            <div class="photo-grid">
-                <div class="photo-container"><span id="photoPlaceholder1">[ Foto 1 ]</span><img id="photoPreview1" class="photo-preview"></div>
-                <div class="photo-container"><span id="photoPlaceholder2">[ Foto 2 ]</span><img id="photoPreview2" class="photo-preview"></div>
+        <section class="doc-block notes-photo-layout">
+            <div class="notes-photo-column">
+                <h2>5. POZNÁMKY</h2>
+                <textarea id="notes" style="width: 100%; border: 1px solid #eee; font-size: 11px; padding: 5px;"></textarea>
+            </div>
+            <div class="notes-photo-column">
+                <h2>6. FOTODOKUMENTÁCIA</h2>
+                <div class="photo-container"><span id="photoPlaceholder1">[ Foto zariadenia ]</span><img id="photoPreview1" class="photo-preview" alt="Fotodokumentácia zariadenia"></div>
             </div>
         </section>
 
@@ -1155,10 +1184,33 @@
         }
     };
 
+    const technicianContacts = {
+        'Pavol Pastorek': {
+            phone: '+421 917 572 221',
+            email: 'spektrainstall@gmail.com'
+        },
+        'David Gabaj': {
+            phone: '',
+            email: ''
+        }
+    };
+
+    window.updateTechnicianContact = function(force = false) {
+        const technicianSelect = document.getElementById('technik');
+        const phoneInput = document.getElementById('technikTelefon');
+        const emailInput = document.getElementById('technikEmail');
+        if (!technicianSelect || !phoneInput || !emailInput) return;
+
+        const contact = technicianContacts[technicianSelect.value] || { phone: '', email: '' };
+        if (force || !phoneInput.value.trim()) phoneInput.value = contact.phone;
+        if (force || !emailInput.value.trim()) emailInput.value = contact.email;
+    };
+
     window.onload = function() {
         const today = new Date();
         document.getElementById('datumInput').value = localIsoDate(today);
         updateFormByDevice();
+        updateTechnicianContact(false);
         initSignature();
     };
 
